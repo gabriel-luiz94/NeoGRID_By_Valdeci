@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mapa de postes e redes</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--bg:#0f2230;--card:#17303f;--fg:#e9eff3;--mut:#93a8b5;--ac:#f2a900}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font:14px/1.4 "Segoe UI",system-ui,sans-serif}
+body{display:grid;grid-template-rows:auto 1fr;background:var(--bg);color:var(--fg)}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 12px;background:var(--card)}
+button,select,input[type=search]{font:inherit;color:var(--fg);background:#0f2230;border:1px solid #2c4757;border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button.p{background:var(--ac);color:#1b1300;border-color:var(--ac);font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+label.c{display:inline-flex;align-items:center;gap:5px;color:var(--mut)}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+#st{color:var(--mut);margin-left:auto}
+#wrap{position:relative;min-height:0}
+#map{position:absolute;inset:0;background:#dfe6ea}
+#aviso{cursor:pointer;position:absolute;z-index:500;left:50%;top:12px;transform:translateX(-50%);background:var(--card);color:var(--fg);padding:8px 14px;border-radius:8px;box-shadow:0 2px 10px #0006}
+#res{position:absolute;z-index:700;left:12px;top:12px;max-width:min(460px,90vw);background:var(--card);border:1px solid #2c4757;border-radius:8px;box-shadow:0 2px 10px #0006;overflow:hidden}
+#res div{padding:7px 12px;cursor:pointer;border-bottom:1px solid #2c4757}
+#res div:hover{background:#0f2230}
+#res div:last-child{border:0}
+#drop{position:absolute;inset:0;z-index:600;display:none;place-items:center;background:#0f2230cc;font-size:20px}
+.leaflet-popup-content{max-height:55vh;overflow:auto;margin:10px 12px;font-size:13px;min-width:210px;color:#1a2a33}
+.leaflet-popup-content table{border-collapse:collapse;width:100%}
+.leaflet-popup-content td{padding:2px 6px 2px 0;vertical-align:top}
+.leaflet-popup-content td:first-child{color:#58707e;white-space:nowrap}
+.leaflet-popup-content .tr{margin-top:3px;color:#33454f}
+.ic{background:none;border:0}
+.leaflet-tooltip.rot{background:none;border:0;box-shadow:none;padding:0;font-size:11px;line-height:1.15;font-weight:600;white-space:nowrap;text-align:left;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000,0 0 2px #000}
+.leaflet-tooltip.rot:before{display:none}
+.rot-p{color:#ffe08a}.rot-bt{color:#a9ccff;text-align:center!important}.rot-mt{color:#ffb4b4;text-align:center!important}
+.lb{display:none;position:absolute;left:24px;top:-4px;white-space:nowrap;font-size:11px;line-height:1.15;color:#fff;pointer-events:none;text-shadow:0 0 3px #000,0 0 3px #000,0 0 2px #000}
+.zl .lb{display:block}
+dialog{background:var(--card);color:var(--fg);border:1px solid #2c4757;border-radius:10px;width:min(460px,92vw)}
+#cols{max-height:50vh;overflow:auto;display:grid;gap:3px;margin:10px 0}
+#cols label{display:flex;gap:6px}
+#pnl,#dxp{position:absolute;z-index:700;right:12px;top:12px;display:grid;gap:7px;background:var(--card);border:1px solid #2c4757;border-radius:8px;box-shadow:0 2px 10px #0006;padding:10px 12px;width:250px}
+#pnl[hidden],#dxp[hidden]{display:none}
+#dxp{right:280px}
+#pnl label,#dxp label{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--mut)}
+#pnl input,#pnl select,#dxp input{width:120px}
+#pnl small,#dxp small{color:var(--mut)}
+#rod,#nort{display:none}
+body.imp{display:block;height:auto;overflow:hidden;background:#fff}
+body.imp header,body.imp #pnl,body.imp #dxp,body.imp .leaflet-control-zoom,body.imp .leaflet-control-layers,body.imp #aviso{display:none}
+body.imp #wrap{width:var(--pw);height:var(--ph);margin:10mm;border:.3mm solid #000;overflow:hidden}
+body.imp #map{background:#fff}
+.leaflet-container img.leaflet-tile{mix-blend-mode:normal!important}
+body.imp #rod{display:block;position:absolute;z-index:1000;left:0;right:0;top:0;background:#fffffff0;color:#000;font:600 11px "Segoe UI",sans-serif;padding:3px 8px;border-bottom:1px solid #000}
+body.imp #nort{display:block;position:absolute;z-index:1000;right:10px;top:30px;color:#000;font:700 14px "Segoe UI",sans-serif;text-align:center;line-height:1}
+body.imp *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+</style>
+<style id="pg"></style>
+</head>
+<body>
+<header>
+  <button class="p" id="abrir">Abrir CSVs</button>
+  <input type="file" id="arq" accept=".csv" multiple hidden>
+  <input type="search" id="q" placeholder="Poste, instalação, coordenadas ou endereço" size="38">
+  <span id="chk"></span>
+  <label class="c"><input type="checkbox" id="rot" checked>Rótulos</label>
+  <button id="irdados">Ir para os dados</button>
+  <button id="campos">Campos do popup</button>
+  <span id="esc" class="c"></span><button id="e1000" title="Voltar à escala padrão 1:1000 no centro da tela">1:1000</button>
+  <label class="c" title="Transparência do mapa de fundo selecionado">Transparência <input type="range" id="tr" min="0" max="100" value="0" style="width:90px"> <span id="trv" style="min-width:3ch">0%</span></label>
+  <button id="bimp">Imprimir…</button>
+  <button id="bdxf" title="Selecione uma área no mapa e exporte em DXF com rótulos">Exportar DXF</button>
+  <span id="st">Nenhum arquivo carregado</span>
+</header>
+<div id="wrap">
+  <div id="map"></div>
+  <div id="res" hidden></div>
+  <div id="aviso" hidden>Aproxime o zoom para ver os elementos</div>
+  <div id="pnl" hidden>
+    <b>Impressão</b>
+    <label>Folha <select id="pfo"><option>A4</option><option selected>A3</option><option>A2</option><option>A1</option><option>A0</option></select></label>
+    <label>Orientação <select id="por"><option value="l">Paisagem</option><option value="p">Retrato</option></select></label>
+    <label>Escala 1: <input id="pes" type="number" list="pesl" value="1000" min="200" step="100"></label>
+    <datalist id="pesl"><option value="500"><option value="1000"><option value="2000"><option value="2500"><option value="5000"><option value="10000"></datalist>
+    <small>O quadro rosa mostra a área que sairá na folha (centro da tela). Mova/zoom o mapa para posicioná-lo.</small>
+    <small id="pinf"></small>
+    <div style="display:flex;gap:6px"><button class="p" id="pgo">Imprimir</button><button id="pfx">Fechar</button></div>
+  </div>
+  <div id="dxp" hidden>
+    <b>Exportar DXF</b>
+    <small id="dxi"></small>
+    <label>Escala <select id="dxe"><option value="1000" selected>1:1000 (1:1, em metros)</option><option value="500">1:500 (vãos 2× maiores)</option></select></label>
+    <label style="justify-content:flex-start"><input type="checkbox" id="dxr" checked style="width:auto">Incluir arruamento (OpenStreetMap)</label>
+    <small>Coordenadas em UTM (SIRGAS 2000), em metros. Postes, instalações, redes BT/MT e todos os rótulos, nas camadas ativas. Texto de altura 1,5; no 1:500 só os vãos dobram, postes, símbolos e textos mantêm o tamanho.</small>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="p" id="dxgo">Baixar DXF</button><button id="dxnova">Nova seleção</button><button id="dxfx">Fechar</button></div>
+  </div>
+  <div id="rod"></div><div id="nort">▲<br>N</div>
+  <div id="drop">Solte os arquivos CSV aqui</div>
+</div>
+<dialog id="dlg">
+  <form method="dialog">
+    <label>Camada: <select id="tp"></select></label>
+    <div id="cols"></div>
+    <button>Fechar</button>
+  </form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ESC = 1000; // escala padrão 1:ESC
+const ANG_SENTIDO = 1; // 1 = graus no sentido horário (como nas chaves); use -1 se o CSV for anti-horário
+const MINZ = 15, MAX = 20000, RZ = 17, LMAX = 4000; // RZ = zoom mínimo dos rótulos; LMAX = máx. de rótulos na tela
+const TIPOS = {poste:/poste/i, bt:/rede_?bt/i, mt:/rede_?mt/i, inst:/instala/i};
+const NOME = {poste:'Poste', bt:'Rede BT', mt:'Rede MT', inst:'Instalação'};
+const COR = {poste:'#f2a900', bt:'#22c55e', mt:'#ef4444', inst:'#e5e7eb'};
+// colunas mostradas por padrão no popup (ajustáveis em "Campos do popup")
+const REDE = [/NU_TRECHO/, /NU_INSTALA/, /CONDUTOR|CABO/, /^CD_FASE$/];
+const DEF = {poste:[/^NU_PG_ID$/, /^NU_ANGULO$/, /NU_ALTURA/, /NU_ESFORCO/, /DE_BARRAMEN/, /NU_INSTALA/],
+             bt:REDE, mt:REDE, inst:[/^TIPO_INSTA$/, /^DE_PLACA$/, /NU_INSTALA/, /^NU_PG_ID$/]};
+const D = {}, ativo = {poste:true, bt:true, mt:true, inst:true};
+let avisou = false;
+
+const map = L.map('map', {zoomAnimation:false, zoomSnap:0}).setView([-8.05,-34.9], 12);
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:22, maxNativeZoom:19, attribution:'Esri'});
+const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:22, maxNativeZoom:19, attribution:'© OpenStreetMap', referrerPolicy:'origin'});
+sat.addTo(map);
+const achado = L.layerGroup().addTo(map);
+const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {subdomains:'abcd', maxZoom:22, attribution:'© OpenStreetMap © CARTO'});
+const rua = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {maxZoom:22, maxNativeZoom:19, attribution:'Esri'});
+const osmfr = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {subdomains:'abc', maxZoom:22, maxNativeZoom:19, attribution:'© OpenStreetMap France'});
+const osmde = L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {maxZoom:22, maxNativeZoom:18, attribution:'© OpenStreetMap'});
+const nenhum = L.layerGroup();
+L.control.layers({'Satélite (Esri)':sat, 'Ruas (Esri)':rua, 'Ruas (CARTO)':carto, 'Ruas (OSM)':osm, 'Ruas (OSM França)':osmfr, 'Ruas (OSM Alemanha)':osmde, 'Sem fundo':nenhum}).addTo(map);
+let errosTile = 0;
+for (const l of [sat, rua, carto, osm, osmfr, osmde]) l.on('tileerror', () => {
+  if (++errosTile === 5) $('#st').textContent = 'O fundo do mapa não carregou (internet ou rede bloqueando). Troque a camada de fundo no ícone no canto do mapa.';
+});
+
+const idx = (d, re) => d.h.map((n, j) => re.test(n) && !/_DESC$|^GEOMETRIA_WKT$/.test(n) ? j : -1).filter(j => j >= 0);
+const lig = (m, k, i) => { if (k == null || k === '') return; (m.get(k) || m.set(k, []).get(k)).push(i); };
+
+function novo(t) { return {h:[], rows:[], X:[], Y:[], geo:new Map, ic:new Map, grid:new Map, by:new Map, mp:new Map, sel:[]}; }
+
+function prep(t, d) {
+  const g = n => d.h.indexOf(n);
+  d.na = g('NU_ANGULO'); d.gx = g('GEO_X'); d.gy = g('GEO_Y'); d.w = g('GEOMETRIA_WKT');
+  d.id = d.h.findIndex(n => /^NU_PG_ID$/.test(n));
+  d.pi = d.h.findIndex(n => /^NU_PG_INI/.test(n));
+  d.pf = d.h.findIndex(n => /^NU_PG_FIN/.test(n));
+  d.ni = idx(d, /NU_INSTALA/)[0] ?? -1;
+  d.sel = [...new Set(DEF[t].flatMap(re => idx(d, re)))].sort((a, b) => a - b);
+}
+
+function pt(d, r) {
+  if (d.gx >= 0 && r[d.gx]) return [+r[d.gx], +r[d.gy]];
+  if (d.w >= 0 && r[d.w]) { const m = r[d.w].match(/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/); if (m) return [+m[1], +m[2]]; }
+  return null;
+}
+
+function add(t, r) {
+  const d = D[t], i = d.rows.push(r) - 1, p = pt(d, r);
+  d.X[i] = p ? p[0] : NaN; d.Y[i] = p ? p[1] : NaN;
+  if (!p) return;
+  if (Math.abs(p[0]) > 180 && !avisou) { avisou = true; alert('As coordenadas parecem UTM. Gere os CSVs com OUT_SR = 4326 (latitude/longitude).'); }
+  const k = Math.floor(p[0] * 100) + ',' + Math.floor(p[1] * 100);
+  (d.grid.get(k) || d.grid.set(k, []).get(k)).push(i);
+  if (t === 'poste') { if (d.id >= 0) d.by.set(r[d.id], i); }
+  else if (t === 'inst') { if (d.ni >= 0) d.by.set(r[d.ni], i); lig(d.mp, r[d.id], i); }
+  else { lig(d.mp, r[d.pi], i); lig(d.mp, r[d.pf], i); }
+}
+
+async function carregar(files) {
+  for (const f of files) {
+    const t = Object.keys(TIPOS).find(k => TIPOS[k].test(f.name));
+    if (!t) { $('#st').textContent = 'Ignorado (nome não reconhecido): ' + f.name; continue; }
+    const d = D[t] ??= novo(t);
+    let primeiro = true;
+    $('#st').textContent = 'Lendo ' + f.name + '...';
+    await new Promise(res => Papa.parse(f, {
+      worker:true, delimiter:';', skipEmptyLines:true,
+      chunk: r => {
+        let rows = r.data;
+        if (primeiro) { primeiro = false; if (!d.h.length) { d.h = rows[0].map(n => n.replace(/^\uFEFF/, '').trim().toUpperCase()); prep(t, d); } rows = rows.slice(1); }
+        for (const row of rows) add(t, row);
+        $('#st').textContent = 'Lendo ' + f.name + '... ' + d.rows.length.toLocaleString('pt-BR') + ' linhas';
+      },
+      complete: res, error: res
+    }));
+  }
+  const ks = Object.keys(D);
+  $('#st').textContent = ks.map(k => NOME[k] + ': ' + D[k].rows.length.toLocaleString('pt-BR')).join(' | ');
+  $('#chk').innerHTML = ks.map(k => `<label class="c"><input type="checkbox" data-t="${k}" ${ativo[k] ? 'checked' : ''}><span class="dot" style="background:${COR[k]}"></span>${NOME[k]}</label>`).join(' ');
+  $('#tp').innerHTML = ks.map(k => `<option value="${k}">${NOME[k]}</option>`).join('');
+  irDados();
+  desenhar();
+}
+
+// escala de tela (96 dpi: 1 px CSS = 0,2646 mm). zoom <-> denominador da escala na latitude dada
+const MM_PX = 0.0002645833;
+const zoomEscala = (lat, den = ESC) => Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) / (den * MM_PX));
+function mostrarEscala() {
+  const c = map.getCenter(), den = 156543.03392 * Math.cos(c.lat * Math.PI / 180) / 2 ** map.getZoom() / MM_PX;
+  $('#esc').textContent = 'Escala 1:' + Math.round(den).toLocaleString('pt-BR');
+}
+function irEscala(lat, lon, den = ESC) { map.setView([lat, lon], zoomEscala(lat, den)); }
+
+// centraliza na célula (~1 km) com mais elementos; ignora pontos isolados fora da área principal
+function irDados() {
+  const t = ['poste', 'inst', 'bt', 'mt'].find(k => D[k]?.grid.size);
+  if (!t) return;
+  let melhor = null, n = 0;
+  for (const [k, v] of D[t].grid) if (v.length > n) { n = v.length; melhor = k; }
+  const [cx, cy] = melhor.split(',').map(Number);
+  irEscala((cy + .5) / 100, (cx + .5) / 100);
+}
+
+function wkt(s) {
+  return s.replace(/^[A-Z]+\s*/, '').split(/\)\s*,\s*\(/).map(parte =>
+    parte.replace(/[()]/g, '').split(',').map(c => { const [x, y] = c.trim().split(/\s+/); return [+y, +x]; }));
+}
+
+function val(d, r, j) {
+  const dj = d.h.indexOf(d.h[j] + '_DESC'), ds = dj >= 0 ? r[dj] : '';
+  return ds && ds !== r[j] ? `${esc(ds)} <small>(${esc(r[j])})</small>` : esc(r[j]);
+}
+
+function pop(t, i) {
+  const d = D[t], r = d.rows[i];
+  let h = `<b>${NOME[t]}</b><table>` + d.sel.map(j => `<tr><td>${esc(d.h[j])}</td><td>${val(d, r, j)}</td></tr>`).join('') + '</table>';
+  if (t === 'poste' && d.id >= 0) {
+    const id = r[d.id], e = D.inst, l = e?.mp.get(id);
+    if (l) h += '<hr><b>Instalação(ões):</b> ' + l.slice(0, 10).map(k => esc(e.rows[k][e.ni])).join(', ');
+    for (const x of ['bt', 'mt']) {
+      const g = D[x], tr = g?.mp.get(id);
+      if (!tr) continue;
+      const cc = idx(g, /CONDUTOR|CABO/);
+      h += `<hr><b>${NOME[x]}</b> (${tr.length} trecho${tr.length > 1 ? 's' : ''})` +
+        tr.slice(0, 5).map(k => '<div class="tr">' + cc.map(j => esc(g.h[j]) + ': ' + val(g, g.rows[k], j)).join(' · ') + '</div>').join('');
+    }
+  }
+  return h;
+}
+
+// ROTULOS-INI
+const col = (d, r, n) => {
+  const m = d._ix ??= {};
+  if (!(n in m)) m[n] = d.h.indexOf(n);
+  return m[n] >= 0 ? String(r[m[n]] ?? '').trim() : '';
+};
+const num = v => { const x = parseFloat(String(v).replace(',', '.')); return isFinite(x) ? x : 0; };
+// poste: ALTURA/ESFORÇO (ex.: 12/300) e, abaixo, o material
+const ABREV = {'DUPLO T':'DT', 'CIRCULAR':'CIR', 'RETANGULAR':'RET', 'FANTASMA':'FAN', 'FLY':'FLY', 'TORRE AUTOPORTANTE':'TA', 'T':'T'};
+function linhasPoste(d, r) {
+  const alt = col(d, r, 'NU_ALTURA'), esf = col(d, r, 'NU_ESFORCO');
+  const mat = col(d, r, 'MATERIAL') || col(d, r, 'CD_INDD_MATERIAL_PG_DESC');
+  const tp = col(d, r, 'TIPO_PG') || col(d, r, 'CD_TIPO_PG_DESC'), T = tp.toUpperCase();
+  const sig = ABREV[T] || (/\s/.test(T) ? T.split(/\s+/).map(p => p[0]).join('') : T.slice(0, 3));
+  return [sig + (alt || '?') + '/' + (esf || '?'), col(d, r, 'DE_BARRAMENTO'), mat].filter(Boolean);
+}
+// rede: condutor das fases (+ neutro) e metragem (comprimento real; se vazio, o da geometria)
+function textoRede(d, r) {
+  const vazio = v => !v || v === '0' || v.toUpperCase() === 'NULO';
+  const f = [...new Set(['CONDUTOR_A', 'CONDUTOR_B', 'CONDUTOR_C'].map(n => col(d, r, n)).filter(v => !vazio(v)))];
+  const n = col(d, r, 'CONDUTOR_N');
+  let c = f.join('/');
+  if (!vazio(n)) c += (c ? ' + N ' : 'N ') + n;
+  const m = num(col(d, r, 'NU_COMPRIMENTO_REAL')) || num(col(d, r, 'SHP_LENGTH'));
+  const len = m ? m.toLocaleString('pt-BR', {maximumFractionDigits:1}) + ' m' : '';
+  return [c, len].filter(Boolean).join(' · ');
+}
+// ROTULOS-FIM
+
+// chave = linha, trafo = triângulo, chave fusível religadora = quadrado, demais = círculo
+function infoInst(d, i) {
+  let v = d.ic.get(i);
+  if (!v) {
+    const r = d.rows[i];
+    const nome = col(d, r, 'TIPO_INSTA') || col(d, r, 'TIPO_SIGLA') || col(d, r, 'NU_TIPO_INSTALACAO_MT_ID_DESC');
+    const tipo = nome.toUpperCase();
+    const k = /^CHAVE FUSIVEL RELIGADORA/.test(tipo) ? 'rel' : /^TRAFO/.test(tipo) ? 'trafo' : /^CHAVE/.test(tipo) ? 'chave' : 'pt';
+    v = {k, nome, placa:col(d, r, 'DE_PLACA'), ang:(+col(d, r, 'NU_ANGULO') || 0) * Math.PI / 180};
+    d.ic.set(i, v);
+  }
+  return v;
+}
+
+// ---- desenho num único canvas (rápido): linhas, postes, instalações e rótulos ----
+const PAD = .25, RAD = Math.PI / 180;
+const FONT = '600 11px "Segoe UI",system-ui,sans-serif', LH = 12;
+const cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+cv.style.pointerEvents = 'none';
+map.getPane('overlayPane').appendChild(cv);
+let ZS = 1, OX = 0, OY = 0, PX = 0, PY = 0, padX = 0, padY = 0, raf = 0, occ = new Map, nl = 0;
+const medidas = new Map;
+// projeção Web Mercator -> pixel do canvas (resultado em PX, PY)
+const pj = (lon, lat) => {
+  const sn = Math.sin(lat * RAD);
+  PX = (lon + 180) / 360 * ZS - OX;
+  PY = (.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * ZS - OY;
+};
+function geo(d, i) {
+  let g = d.geo.get(i);
+  if (!g) { if (d.geo.size > 60000) d.geo.clear(); g = wkt(d.rows[i][d.w]); d.geo.set(i, g); }
+  return g; // anéis de [lat, lon]
+}
+const larg = s => { let w = medidas.get(s); if (w == null) medidas.set(s, w = ctx.measureText(s).width); return w; };
+function livre(x0, y0, x1, y1) {
+  for (let a = x0 >> 6; a <= x1 >> 6; a++) for (let b = y0 >> 6; b <= y1 >> 6; b++)
+    for (const q of occ.get(a * 100000 + b) || []) if (x0 < q[2] && x1 > q[0] && y0 < q[3] && y1 > q[1]) return false;
+  return true;
+}
+function ocupar(x0, y0, x1, y1) {
+  const q = [x0, y0, x1, y1];
+  for (let a = x0 >> 6; a <= x1 >> 6; a++) for (let b = y0 >> 6; b <= y1 >> 6; b++) {
+    const k = a * 100000 + b; (occ.get(k) || occ.set(k, []).get(k)).push(q);
+  }
+}
+// modo 'd': texto à direita de (x,y); modo 'c': centrado em (x,y) e girado em ang. Não desenha se colidir com outro rótulo.
+// No modo 'c' a colisão é medida ao longo do texto (vários quadradinhos), pois a caixa de um texto inclinado é grande demais.
+function rotulo(lin, x, y, cor, modo, ang = 0) {
+  if (nl >= LMAX) return;
+  const h = lin.length * LH + 2; let w = 2;
+  for (const l of lin) w = Math.max(w, larg(l) + 2);
+  const caixas = [];
+  if (modo === 'c') {
+    const n = Math.max(1, Math.ceil(w / 12)), r = h / 2 - 1, ca = Math.cos(ang), sa = Math.sin(ang);
+    for (let k = 0; k < n; k++) { const t = ((k + .5) / n - .5) * w; caixas.push([x + ca * t - r, y + sa * t - r, x + ca * t + r, y + sa * t + r]); }
+  } else if (modo === 'e') caixas.push([x - w, y - h / 2, x, y + h / 2]);
+  else caixas.push([x, y - h / 2, x + w, y + h / 2]);
+  for (const c of caixas) if (!livre(c[0], c[1], c[2], c[3])) return;
+  for (const c of caixas) ocupar(c[0], c[1], c[2], c[3]);
+  nl++;
+  ctx.save(); ctx.translate(x, y); if (modo === 'c') ctx.rotate(ang);
+  ctx.textAlign = modo === 'c' ? 'center' : modo === 'e' ? 'right' : 'left'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = '#000'; ctx.fillStyle = cor;
+  lin.forEach((l, k) => { const yy = (k - (lin.length - 1) / 2) * LH; ctx.strokeText(l, 0, yy); ctx.fillText(l, 0, yy); });
+  ctx.restore();
+}
+
+function render() {
+  raf = 0;
+  const z = map.getZoom(), sz = map.getSize(); let dpr = window.devicePixelRatio || 1;
+  padX = Math.round(sz.x * PAD); padY = Math.round(sz.y * PAD);
+  const W = sz.x + 2 * padX, H = sz.y + 2 * padY;
+  if (document.body.classList.contains('imp')) dpr = Math.max(1, Math.min(2, Math.sqrt(9e7 / (W * H))));
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  }
+  L.DomUtil.setPosition(cv, map.containerPointToLayerPoint([-padX, -padY]));
+  cv.style.visibility = 'visible';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  map.getContainer().classList.toggle('zl', false);
+  const av = $('#aviso'), ks = Object.keys(D);
+  if (z < MINZ) { av.textContent = 'Aproxime o zoom para ver os elementos'; av.hidden = !ks.length; return; }
+  av.hidden = true;
+
+  ZS = 256 * 2 ** z; const m = map.getPixelBounds().min; OX = m.x - padX; OY = m.y - padY;
+  ctx.font = FONT; occ = new Map; nl = 0;
+  const bb = map.getBounds().pad(PAD * 1.1), w0 = bb.getWest(), e0 = bb.getEast(), s0 = bb.getSouth(), n0 = bb.getNorth();
+  const x0 = Math.floor(w0 * 100) - 1, x1 = Math.floor(e0 * 100) + 1, y0 = Math.floor(s0 * 100) - 1, y1 = Math.floor(n0 * 100) + 1;
+  const vis = {}; let corte = false, total = 0;
+  for (const t of ks) {
+    const v = vis[t] = [];
+    if (!ativo[t]) continue;
+    const d = D[t], cap = t === 'inst' ? 8000 : MAX;
+    cel: for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) {
+      for (const i of d.grid.get(cx + ',' + cy) || []) {
+        const x = d.X[i], y = d.Y[i];
+        if (x < w0 || x > e0 || y < s0 || y > n0) continue;
+        if (v.length >= cap) { corte = true; break cel; }
+        v.push(i);
+      }
+    }
+    total += v.length;
+  }
+
+  // linhas (BT e MT)
+  for (const t of ['mt', 'bt']) {
+    const v = vis[t]; if (!v?.length) continue;
+    const d = D[t];
+    ctx.beginPath();
+    for (const i of v) for (const ring of geo(d, i)) for (let k = 0; k < ring.length; k++) {
+      pj(ring[k][1], ring[k][0]); k ? ctx.lineTo(PX, PY) : ctx.moveTo(PX, PY);
+    }
+    ctx.strokeStyle = COR[t]; ctx.lineWidth = t === 'mt' ? (z >= 17 ? 6 : 4) : (z >= 17 ? 3 : 2); ctx.lineJoin = 'round'; ctx.stroke();
+  }
+  // postes
+  if (vis.poste?.length) {
+    const d = D.poste, hw = (z >= 17 ? 14 : z >= 16 ? 9 : 6) / 2, hh = (z >= 17 ? 7 : z >= 16 ? 4.5 : 3) / 2;
+    ctx.beginPath();
+    for (const i of vis.poste) {
+      pj(d.X[i], d.Y[i]);
+      const a = d.na >= 0 ? num(d.rows[i][d.na]) * RAD * ANG_SENTIDO : 0, c = Math.cos(a), s = Math.sin(a);
+      ctx.moveTo(PX - hw * c + hh * s, PY - hw * s - hh * c); ctx.lineTo(PX + hw * c + hh * s, PY + hw * s - hh * c);
+      ctx.lineTo(PX + hw * c - hh * s, PY + hw * s + hh * c); ctx.lineTo(PX - hw * c - hh * s, PY - hw * s + hh * c); ctx.closePath();
+    }
+    ctx.fillStyle = COR.poste; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#10202b'; ctx.stroke();
+  }
+  // instalações
+  if (vis.inst?.length) {
+    const d = D.inst;
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#10202b';
+    for (const i of vis.inst) {
+      const v = infoInst(d, i); pj(d.X[i], d.Y[i]);
+      if (v.k === 'rel') { ctx.fillStyle = '#a855f7'; ctx.fillRect(PX - 7, PY - 7, 14, 14); ctx.strokeRect(PX - 7, PY - 7, 14, 14); }
+      else if (v.k === 'trafo') { ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.moveTo(PX, PY - 9); ctx.lineTo(PX + 9, PY + 7); ctx.lineTo(PX - 9, PY + 7); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      else if (v.k === 'chave') {
+        ctx.save(); ctx.translate(PX, PY); ctx.rotate(v.ang); ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(10, 0);
+        ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke(); ctx.restore();
+      } else { ctx.fillStyle = '#e5e7eb'; ctx.beginPath(); ctx.arc(PX, PY, 5, 0, 6.2832); ctx.fill(); ctx.stroke(); }
+    }
+  }
+
+  // rótulos (prioridade: poste, instalação, BT, MT; instalação à esquerda do símbolo; o que colidir com outro rótulo não é desenhado)
+  if (z >= RZ && $('#rot').checked) {
+    if (vis.poste?.length) { const d = D.poste; for (const i of vis.poste) { pj(d.X[i], d.Y[i]); rotulo(linhasPoste(d, d.rows[i]), PX + (z >= 17 ? 10 : 7), PY, '#ffe08a', 'd'); } }
+    if (vis.inst?.length) { const d = D.inst; for (const i of vis.inst) { const v = infoInst(d, i); if (!v.nome && !v.placa) continue; pj(d.X[i], d.Y[i]); rotulo([v.nome, v.placa].filter(Boolean), PX - 13, PY - 3, '#fff', 'e'); } }
+    const cand = [];
+    for (const t of ['mt', 'bt']) {
+      const v = vis[t]; if (!v?.length) continue;
+      const d = D[t], lado = t === 'mt' ? 8 : -8; // MT acima da linha, BT abaixo
+      for (const i of v) {
+        const ring = geo(d, i)[0]; if (!ring || ring.length < 2) continue;
+        pj(ring[0][1], ring[0][0]); const ax = PX, ay = PY;
+        pj(ring[ring.length - 1][1], ring[ring.length - 1][0]);
+        const dx = PX - ax, dy = PY - ay, len = Math.hypot(dx, dy); if (len < 8) continue;
+        let ang = Math.atan2(dy, dx); if (ang > Math.PI / 2) ang -= Math.PI; else if (ang < -Math.PI / 2) ang += Math.PI;
+        const tx = textoRede(d, d.rows[i]); if (!tx) continue;
+        cand.push({len, tx, ang, x:(ax + PX) / 2 + Math.sin(ang) * lado, y:(ay + PY) / 2 - Math.cos(ang) * lado, cor:t === 'bt' ? '#a7f3b8' : '#ffb4b4'});
+      }
+    }
+    // BT e MT disputam o espaço em pé de igualdade: os trechos mais longos (qualquer rede) recebem rótulo primeiro
+    cand.sort((a, b) => b.len - a.len);
+    for (const c of cand) rotulo([c.tx], c.x, c.y, c.cor, 'c', c.ang);
+  }
+
+  if (ks.length && !total) { av.textContent = 'Nenhum dado nesta área. Clique aqui para ir até a área com mais dados.'; av.hidden = false; }
+  else if (corte) { av.textContent = 'Muitos elementos nesta tela, nem todos estão sendo mostrados. Aproxime o zoom.'; av.hidden = false; }
+}
+function desenhar() { if (!raf) raf = requestAnimationFrame(render); }
+
+// clique: acha o elemento mais próximo (postes/instalações até 12 px; linhas até 8 px) e abre o popup
+const seg2 = (px, py, ax, ay, bx, by) => {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+  const u = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
+  return (px - ax - u * dx) ** 2 + (py - ay - u * dy) ** 2;
+};
+function acharClique(e) {
+  const cx = e.containerPoint.x + padX, cy = e.containerPoint.y + padY;
+  const gx = Math.floor(e.latlng.lng * 100), gy = Math.floor(e.latlng.lat * 100);
+  const cels = d => { const o = []; for (let a = gx - 1; a <= gx + 1; a++) for (let b = gy - 1; b <= gy + 1; b++) o.push(...(d.grid.get(a + ',' + b) || [])); return o; };
+  let melhor = null, md = 1e9;
+  for (const t of ['poste', 'inst']) {
+    if (!ativo[t] || !D[t]) continue;
+    const d = D[t];
+    for (const i of cels(d)) { pj(d.X[i], d.Y[i]); const q = (PX - cx) ** 2 + (PY - cy) ** 2; if (q < 144 && q <= md) { md = q; melhor = [t, i]; } }
+  }
+  if (melhor) return [melhor];
+  // linhas: devolve todas as que passam a até 8 px do clique (BT e MT sobrepostas aparecem juntas)
+  const hits = [];
+  for (const t of ['mt', 'bt']) {
+    if (!ativo[t] || !D[t]) continue;
+    const d = D[t], achados = [];
+    for (const i of cels(d)) {
+      let m = 64;
+      for (const ring of geo(d, i)) {
+        pj(ring[0][1], ring[0][0]);
+        for (let k = 1; k < ring.length; k++) {
+          const ax = PX, ay = PY; pj(ring[k][1], ring[k][0]);
+          m = Math.min(m, seg2(cx, cy, ax, ay, PX, PY));
+        }
+      }
+      if (m < 64) achados.push([m, i]);
+    }
+    achados.sort((a, b) => a[0] - b[0]);
+    for (const [, i] of achados.slice(0, 3)) hits.push([t, i]);
+  }
+  return hits;
+}
+
+function ir(lat, lon, html, z = 18) {
+  achado.clearLayers();
+  L.circleMarker([lat, lon], {radius:11, color:'#fff', weight:3, fillColor:'#e11d8f', fillOpacity:.6}).addTo(achado);
+  irEscala(lat, lon);
+  if (html) L.popup().setLatLng([lat, lon]).setContent(html).openOn(map);
+}
+
+function coord(q) {
+  const m = q.replace(/[°()]/g, '').match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+  if (!m) return null;
+  let a = +m[1].replace(',', '.'), b = +m[2].replace(',', '.');
+  if (Math.abs(a) > 90 && Math.abs(b) <= 90) [a, b] = [b, a]; // veio lon,lat
+  return Math.abs(a) <= 90 && Math.abs(b) <= 180 ? [a, b] : null;
+}
+
+async function geocodificar(q) {
+  const b = map.getBounds();
+  const u = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=pt-BR&countrycodes=br&q=' +
+    encodeURIComponent(q) + `&viewbox=${b.getWest()},${b.getNorth()},${b.getEast()},${b.getSouth()}`;
+  const r = await fetch(u);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function buscar(q) {
+  q = q.trim(); if (!q) return;
+  $('#res').hidden = true;
+  const c = coord(q);
+  if (c) { ir(c[0], c[1], `<b>Coordenada</b><br>${c[0]}, ${c[1]}`); return; }
+  for (const t of ['poste', 'inst']) {
+    const i = D[t]?.by.get(q);
+    if (i == null) continue;
+    const p = pt(D[t], D[t].rows[i]); if (!p) continue;
+    irEscala(p[1], p[0]);
+    L.popup().setLatLng([p[1], p[0]]).setContent(pop(t, i)).openOn(map);
+    return;
+  }
+  $('#st').textContent = 'Buscando endereço...';
+  try {
+    const rs = await geocodificar(q);
+    if (!rs.length) { $('#st').textContent = 'Não encontrado: ' + q; return; }
+    $('#st').textContent = rs.length + ' resultado(s) para: ' + q;
+    const go = x => { $('#res').hidden = true; ir(+x.lat, +x.lon, esc(x.display_name), 17); };
+    go(rs[0]);
+    if (rs.length > 1) {
+      const box = $('#res');
+      box.innerHTML = rs.map((x, k) => `<div data-k="${k}">${esc(x.display_name)}</div>`).join('');
+      box.hidden = false;
+      box.onclick = e => { const k = e.target.dataset.k; if (k != null) go(rs[k]); };
+    }
+  } catch (err) {
+    $('#st').textContent = 'Falha ao buscar endereço (internet?): ' + err.message;
+  }
+}
+
+map.on('moveend zoomend resize', desenhar);
+map.on('moveend zoomend', mostrarEscala);
+L.control.scale({imperial:false, maxWidth:140}).addTo(map);
+map.on('zoomstart', () => { cv.style.visibility = 'hidden'; });
+map.on('click', e => {
+  if (Date.now() < semClique) return;
+  $('#res').hidden = true;
+  if (map.getZoom() < MINZ || !Object.keys(D).length) return;
+  const hs = acharClique(e);
+  if (hs.length) L.popup({maxWidth:420}).setLatLng(e.latlng).setContent(hs.map(h => pop(h[0], h[1])).join('<hr>')).openOn(map);
+});
+$('#abrir').onclick = () => $('#arq').click();
+$('#irdados').onclick = irDados;
+$('#e1000').onclick = () => { const c = map.getCenter(); irEscala(c.lat, c.lng); };
+$('#rot').onchange = desenhar;
+$('#aviso').onclick = e => { if (/Nenhum dado/.test(e.target.textContent)) irDados(); };
+$('#arq').onchange = e => carregar([...e.target.files]);
+$('#chk').onchange = e => { ativo[e.target.dataset.t] = e.target.checked; desenhar(); };
+// ---- sugestões enquanto digita ----
+let sug = [], sel = -1, tmr, ctl;
+function mostrar(items) {
+  sug = items; sel = -1;
+  const box = $('#res');
+  if (!items.length) { box.hidden = true; return; }
+  box.innerHTML = items.map((x, k) => `<div data-k="${k}">${x.ic} ${esc(x.t)}</div>`).join('');
+  box.hidden = false;
+  box.onclick = e => { const d = e.target.closest('[data-k]'); if (d) escolher(sug[d.dataset.k]); };
+}
+function escolher(x) {
+  $('#res').hidden = true;
+  if (x.q != null) { $('#q').value = x.q; buscar(x.q); }
+  else { $('#q').value = x.t; ir(x.lat, x.lon, esc(x.t), 17); }
+}
+function marcar(k) {
+  const el = [...$('#res').children];
+  sel = (k + el.length) % el.length;
+  el.forEach((d, n) => d.style.background = n === sel ? '#0f2230' : '');
+}
+function locais(q) {
+  const out = [];
+  for (const t of ['poste', 'inst']) {
+    const d = D[t]; if (!d) continue;
+    let n = 0;
+    for (const k of d.by.keys()) if (String(k).startsWith(q) && ++n <= 4) out.push({t:NOME[t] + ' ' + k, q:String(k), ic:'📍'}); else if (n > 4) break;
+  }
+  return out;
+}
+async function sugerir(q) {
+  if (coord(q)) { mostrar([]); return; }
+  const loc = locais(q);
+  mostrar(loc);
+  ctl?.abort(); ctl = new AbortController();
+  const c = map.getCenter();
+  try {
+    const r = await fetch('https://photon.komoot.io/api/?limit=8&lat=' + c.lat + '&lon=' + c.lng + '&q=' + encodeURIComponent(q), {signal:ctl.signal});
+    const j = await r.json();
+    const vistos = new Set();
+    const ext = j.features.filter(f => f.properties.countrycode === 'BR').map(f => {
+      const p = f.properties, rua = p.street ? p.street + (p.housenumber ? ', ' + p.housenumber : '') : '';
+      const t = [p.name || rua, p.name && rua ? rua : '', p.district, p.city || p.county, p.state].filter(Boolean).join(' - ');
+      return {t, lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0], ic:'🌎'};
+    }).filter(x => !vistos.has(x.t) && vistos.add(x.t));
+    if ($('#q').value.trim() === q) mostrar([...loc, ...ext]);
+  } catch (e) { if (e.name !== 'AbortError') $('#st').textContent = 'Sugestões indisponíveis (internet?). Use Enter para buscar.'; }
+}
+$('#q').oninput = e => {
+  clearTimeout(tmr);
+  const q = e.target.value.trim();
+  if (q.length < 3) { ctl?.abort(); mostrar([]); return; }
+  tmr = setTimeout(() => sugerir(q), 300);
+};
+$('#q').onkeydown = e => {
+  const aberto = !$('#res').hidden && sug.length;
+  if (e.key === 'ArrowDown' && aberto) { e.preventDefault(); marcar(sel + 1); }
+  else if (e.key === 'ArrowUp' && aberto) { e.preventDefault(); marcar(sel - 1); }
+  else if (e.key === 'Escape') $('#res').hidden = true;
+  else if (e.key === 'Enter') {
+    clearTimeout(tmr); ctl?.abort();
+    if (aberto && sel >= 0) escolher(sug[sel]); else buscar(e.target.value);
+  }
+};
+$('#campos').onclick = () => { $('#dlg').showModal(); lista(); };
+$('#tp').onchange = lista;
+function lista() {
+  const d = D[$('#tp').value];
+  $('#cols').innerHTML = d ? d.h.map((n, j) => /_DESC$|^GEOMETRIA_WKT$/.test(n) ? '' :
+    `<label><input type="checkbox" data-j="${j}" ${d.sel.includes(j) ? 'checked' : ''}>${esc(n)}</label>`).join('') : 'Abra os arquivos CSV primeiro.';
+}
+$('#cols').onchange = e => {
+  const d = D[$('#tp').value], j = +e.target.dataset.j;
+  d.sel = e.target.checked ? [...d.sel, j].sort((a, b) => a - b) : d.sel.filter(x => x !== j);
+};
+// ---- exportação DXF da área selecionada (UTM SIRGAS 2000, metros) ----
+let dxModo = false, dxA = null, dxR = null, dxB = null, semClique = 0;
+function utm(lat, lon, Z) {
+  const a = 6378137, f = 1 / 298.257222101, k0 = .9996, e2 = f * (2 - f), ep = e2 / (1 - e2);
+  const p = lat * RAD, dl = (lon - ((Z - 1) * 6 - 180 + 3)) * RAD, sn = Math.sin(p), cs = Math.cos(p), tn = Math.tan(p);
+  const N = a / Math.sqrt(1 - e2 * sn * sn), T = tn * tn, C = ep * cs * cs, A = dl * cs;
+  const M = a * ((1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * p - (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * p)
+    + (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * p) - 35 * e2 ** 3 / 3072 * Math.sin(6 * p));
+  const x = k0 * N * (A + (1 - T + C) * A ** 3 / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep) * A ** 5 / 120) + 500000;
+  let y = k0 * (M + N * tn * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * A ** 4 / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep) * A ** 6 / 720));
+  return [x, lat < 0 ? y + 1e7 : y];
+}
+const dxfTxt = s => String(s).replace(/[^\x20-\x7E]/g, ch => '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
+function coletarDXF(b) {
+  const w0 = b.getWest(), e0 = b.getEast(), s0 = b.getSouth(), n0 = b.getNorth(), out = {};
+  for (const t of Object.keys(D)) {
+    if (!ativo[t]) continue;
+    const d = D[t], v = out[t] = [], lin = t === 'bt' || t === 'mt';
+    for (let cx = Math.floor(w0 * 100) - 1; cx <= Math.floor(e0 * 100) + 1; cx++) for (let cy = Math.floor(s0 * 100) - 1; cy <= Math.floor(n0 * 100) + 1; cy++) {
+      for (const i of d.grid.get(cx + ',' + cy) || []) {
+        if (!lin) { if (d.X[i] >= w0 && d.X[i] <= e0 && d.Y[i] >= s0 && d.Y[i] <= n0) v.push(i); continue; }
+        let a = 1e9, bb = -1e9, c = 1e9, dd = -1e9;
+        for (const ring of geo(d, i)) for (const q of ring) { a = Math.min(a, q[1]); bb = Math.max(bb, q[1]); c = Math.min(c, q[0]); dd = Math.max(dd, q[0]); }
+        if (bb >= w0 && a <= e0 && dd >= s0 && c <= n0) v.push(i);
+      }
+    }
+  }
+  return out;
+}
+function gerarDXF(b, den, ruas = []) {
+  const sel = coletarDXF(b), ct = b.getCenter(), Z = Math.floor((ct.lng + 180) / 6) + 1;
+  // 1:1000 = desenho 1:1 em metros; 1:500 = posições (vãos) x2 a partir do centro da seleção, tamanhos de símbolos/textos iguais
+  const ke = 1000 / den, cc = utm(ct.lat, ct.lng, Z), P = (la, lo) => { const [x, y] = utm(la, lo, Z); return [cc[0] + (x - cc[0]) * ke, cc[1] + (y - cc[1]) * ke]; };
+  const m = 1, H = 1.5, LHm = H * 1.25, o = [], e = (...a) => o.push(...a), f = v => (+v).toFixed(3);
+  const poly = (lay, pts, fech, cor) => {
+    e(0, 'POLYLINE', 8, lay, ...(cor != null ? [62, cor] : []), 66, 1, 10, 0, 20, 0, 30, 0, 70, fech ? 1 : 0);
+    for (const [x, y] of pts) e(0, 'VERTEX', 8, lay, 10, f(x), 20, f(y), 30, 0);
+    e(0, 'SEQEND', 8, lay);
+  };
+  const txt = (lay, s, x, y, rot, al) => e(0, 'TEXT', 8, lay, 10, f(x), 20, f(y), 30, 0, 40, f(H), 1, dxfTxt(s), 50, f(rot), 72, al, 73, 2, 11, f(x), 21, f(y), 31, 0);
+  const bloco = (lay, lines, x, y, al) => lines.forEach((l, k) => txt(lay, l, x, y + ((lines.length - 1) / 2 - k) * LHm, 0, al));
+  const cont = {};
+  if (sel.poste) {
+    const d = D.poste; cont.poste = sel.poste.length;
+    for (const i of sel.poste) {
+      const [x, y] = P(d.Y[i], d.X[i]), th = -(d.na >= 0 ? num(d.rows[i][d.na]) : 0) * ANG_SENTIDO * RAD, cs = Math.cos(th), sn = Math.sin(th), hw = 1.85 * m, hh = .93 * m;
+      poly('POSTES', [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([u, v]) => [x + u * cs - v * sn, y + u * sn + v * cs]), true);
+      bloco('TXT_POSTES', linhasPoste(d, d.rows[i]), x + 3 * m, y, 0);
+    }
+  }
+  if (sel.inst) {
+    const d = D.inst; cont.inst = sel.inst.length;
+    for (const i of sel.inst) {
+      const [x, y] = P(d.Y[i], d.X[i]), v = infoInst(d, i), th = -v.ang * ANG_SENTIDO;
+      if (v.k === 'rel') poly('INSTALACOES', [[-1,-1],[1,-1],[1,1],[-1,1]].map(([u, w]) => [x + u * 1.85 * m, y + w * 1.85 * m]), true, 6);
+      else if (v.k === 'trafo') poly('INSTALACOES', [[0, 2.4], [2.4, -1.8], [-2.4, -1.8]].map(([u, w]) => [x + u * m, y + w * m]), true, 30);
+      else if (v.k === 'chave') e(0, 'LINE', 8, 'INSTALACOES', 62, 3, 10, f(x - 2.6 * m * Math.cos(th)), 20, f(y - 2.6 * m * Math.sin(th)), 30, 0, 11, f(x + 2.6 * m * Math.cos(th)), 21, f(y + 2.6 * m * Math.sin(th)), 31, 0);
+      else e(0, 'CIRCLE', 8, 'INSTALACOES', 62, 7, 10, f(x), 20, f(y), 30, 0, 40, f(1.3 * m));
+      const l = [v.nome, v.placa].filter(Boolean); if (l.length) bloco('TXT_INSTALACOES', l, x - 3.4 * m, y + .8 * m, 2);
+    }
+  }
+  for (const t of ['mt', 'bt']) {
+    if (!sel[t]) continue;
+    const d = D[t], L1 = t === 'mt' ? 'REDE_MT' : 'REDE_BT', L2 = t === 'mt' ? 'TXT_MT' : 'TXT_BT'; cont[t] = sel[t].length;
+    for (const i of sel[t]) {
+      const rings = geo(d, i).map(r => r.map(q => P(q[0], q[1])));
+      for (const r of rings) poly(L1, r, false);
+      const r = rings[0], tx = textoRede(d, d.rows[i]); if (!r || r.length < 2 || !tx) continue;
+      const a = r[0], z = r[r.length - 1]; if (Math.hypot(z[0] - a[0], z[1] - a[1]) < 1e-6) continue;
+      let th = Math.atan2(z[1] - a[1], z[0] - a[0]); if (th > Math.PI / 2) th -= Math.PI; else if (th < -Math.PI / 2) th += Math.PI;
+      const k = (t === 'mt' ? 1 : -1) * 1.2;
+      txt(L2, tx, (a[0] + z[0]) / 2 - Math.sin(th) * k, (a[1] + z[1]) / 2 + Math.cos(th) * k, th / RAD, 1);
+    }
+  }
+  cont.ruas = ruas.length;
+  for (const w of ruas) {
+    const r = w.pts.map(q => P(q[0], q[1])); if (r.length < 2) continue;
+    poly('ARRUAMENTO', r, false);
+    if (!w.nome) continue;
+    const k0 = Math.floor((r.length - 1) / 2), a = r[k0], z = r[k0 + 1];
+    let th = Math.atan2(z[1] - a[1], z[0] - a[0]); if (th > Math.PI / 2) th -= Math.PI; else if (th < -Math.PI / 2) th += Math.PI;
+    txt('TXT_RUAS', w.nome, (a[0] + z[0]) / 2 - Math.sin(th) * 1.2, (a[1] + z[1]) / 2 + Math.cos(th) * 1.2, th / RAD, 1);
+  }
+  const camadas = [['ARRUAMENTO', 9], ['TXT_RUAS', 9], ['POSTES', 2], ['INSTALACOES', 7], ['REDE_BT', 3], ['REDE_MT', 1], ['TXT_POSTES', 2], ['TXT_INSTALACOES', 7], ['TXT_BT', 3], ['TXT_MT', 1]];
+  const h = [0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 0, 'ENDSEC', 0, 'SECTION', 2, 'TABLES',
+    0, 'TABLE', 2, 'LTYPE', 70, 1, 0, 'LTYPE', 2, 'CONTINUOUS', 70, 0, 3, 'Solid line', 72, 65, 73, 0, 40, 0, 0, 'ENDTAB',
+    0, 'TABLE', 2, 'LAYER', 70, camadas.length, ...camadas.flatMap(([n, c]) => [0, 'LAYER', 2, n, 70, 0, 62, c, 6, 'CONTINUOUS']), 0, 'ENDTAB',
+    0, 'TABLE', 2, 'STYLE', 70, 1, 0, 'STYLE', 2, 'STANDARD', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, .2, 3, 'txt', 4, '', 0, 'ENDTAB',
+    0, 'ENDSEC', 0, 'SECTION', 2, 'ENTITIES'];
+  return {txt: [...h, ...o, 0, 'ENDSEC', 0, 'EOF'].join('\n') + '\n', cont, Z, hemi: ct.lat < 0 ? 'S' : 'N'};
+}
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+async function ruasOSM(b) {
+  const bb = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].join(',');
+  const q = `[out:json][timeout:40];way["highway"](${bb});out tags geom(${bb});`;
+  const falhas = [];
+  for (let volta = 0; volta < 2; volta++) for (const u of OVERPASS) {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 30000);
+    try {
+      $('#st').textContent = 'Baixando arruamento do OpenStreetMap... (' + new URL(u).hostname + ')';
+      const r = await fetch(u, {method:'POST', body:'data=' + encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}, signal:ctl.signal});
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.elements.filter(x => x.geometry).map(x => ({pts:x.geometry.filter(g => g).map(g => [g.lat, g.lon]), nome:x.tags?.name || ''}));
+    } catch (err) { falhas.push(new URL(u).hostname + ': ' + (err.name === 'AbortError' ? 'tempo esgotado' : err.message)); }
+    finally { clearTimeout(tm); }
+    if (volta === 0 && u === OVERPASS[OVERPASS.length - 1]) await new Promise(r => setTimeout(r, 2500));
+  }
+  throw new Error(falhas.slice(-4).join('; '));
+}
+function dxFechar(limpar = true) {
+  dxModo = false; dxA = null; map.dragging.enable(); map.getContainer().style.cursor = '';
+  if (limpar) { dxR?.remove(); dxR = null; dxB = null; $('#dxp').hidden = true; }
+}
+function dxIniciar() {
+  if (!Object.keys(D).length) { alert('Abra os CSVs primeiro.'); return; }
+  dxFechar(); dxModo = true; map.dragging.disable(); map.getContainer().style.cursor = 'crosshair';
+  $('#st').textContent = 'DXF: arraste no mapa para selecionar a área';
+}
+map.on('mousedown', e => {
+  if (!dxModo || e.originalEvent.button) return;
+  dxA = e.latlng; dxR?.remove();
+  dxR = L.rectangle([dxA, dxA], {color:'#00e5ff', weight:2, fillOpacity:.08, interactive:false}).addTo(map);
+});
+map.on('mousemove', e => { if (dxModo && dxA) dxR.setBounds([dxA, e.latlng]); });
+map.on('mouseup', e => {
+  if (!dxModo || !dxA) return;
+  dxB = L.latLngBounds(dxA, e.latlng); dxFechar(false); semClique = Date.now() + 300;
+  const c = dxB.getCenter(), wm = (dxB.getEast() - dxB.getWest()) * 111320 * Math.cos(c.lat * RAD), hm = (dxB.getNorth() - dxB.getSouth()) * 111320;
+  if (wm < 2 || hm < 2) { dxFechar(); return; }
+  $('#dxi').textContent = `Área selecionada: ${Math.round(wm)} × ${Math.round(hm)} m`; $('#dxp').hidden = false;
+});
+$('#bdxf').onclick = dxIniciar;
+$('#dxnova').onclick = dxIniciar;
+$('#dxfx').onclick = () => dxFechar();
+$('#dxgo').onclick = async () => {
+  const den = +$('#dxe').value || 1000; let ruas = [], aviso = '';
+  if ($('#dxr').checked) {
+    $('#st').textContent = 'Baixando arruamento do OpenStreetMap...';
+    try { ruas = await ruasOSM(dxB); } catch (err) { aviso = ' (arruamento indisponível: ' + err.message + ')'; alert('Não foi possível baixar o arruamento do OpenStreetMap (' + err.message + ').\nO DXF será gerado sem as ruas. Tente novamente em instantes ou com uma área menor.'); }
+    if (!aviso && !ruas.length) aviso = ' (o OpenStreetMap não tem vias nesta área)';
+  }
+  const r = gerarDXF(dxB, den, ruas), a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([r.txt], {type:'application/dxf'})); a.download = `area_1-${den}.dxf`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  $('#st').textContent = 'DXF gerado (UTM fuso ' + r.Z + r.hemi + '): ' + Object.entries(r.cont).map(([k, n]) => (NOME[k] || 'Ruas') + ' ' + n).join(' | ') + aviso;
+};
+
+// ---- transparência do mapa de fundo ----
+$('#tr').oninput = e => { map.getPane('tilePane').style.opacity = 1 - e.target.value / 100; $('#trv').textContent = e.target.value + '%'; };
+
+// ---- impressão: folha, orientação e escala (1 px CSS = 0,2646 mm, então a escala sai exata ao imprimir a 100%) ----
+const invOrig = map.invalidateSize.bind(map); let imprimindo = false;
+map.invalidateSize = o => imprimindo ? map : invOrig(o); // o navegador redimensiona a janela ao imprimir e isso apagava os tiles
+const FOLHAS = {A4:[297, 210], A3:[420, 297], A2:[594, 420], A1:[841, 594], A0:[1189, 841]}, MARG = 10;
+let quadro = null;
+const dimFolha = () => { const [w, h] = FOLHAS[$('#pfo').value]; return $('#por').value === 'p' ? [h, w] : [w, h]; };
+function mostrarQuadro() {
+  if ($('#pnl').hidden || document.body.classList.contains('imp')) { quadro?.remove(); quadro = null; return; }
+  const [w, h] = dimFolha(), den = +$('#pes').value || ESC, c = map.getCenter();
+  const wm = (w - 2 * MARG) / 1000 * den, hm = (h - 2 * MARG) / 1000 * den;
+  const dl = hm / 2 / 111320, dn = wm / 2 / (111320 * Math.cos(c.lat * RAD)), b = [[c.lat - dl, c.lng - dn], [c.lat + dl, c.lng + dn]];
+  if (quadro) quadro.setBounds(b); else quadro = L.rectangle(b, {color:'#e11d8f', weight:2, fill:false, dashArray:'6 4', interactive:false}).addTo(map);
+  $('#pinf').textContent = `Área útil ${w - 2 * MARG}×${h - 2 * MARG} mm = ${Math.round(wm)}×${Math.round(hm)} m no terreno`;
+}
+async function imprimir() {
+  const [w, h] = dimFolha(), den = Math.max(100, +$('#pes').value || ESC), c = map.getCenter(), z0 = map.getZoom(), b = document.body;
+  $('#pnl').hidden = true; mostrarQuadro();
+  $('#pg').textContent = `@page{size:${w}mm ${h}mm;margin:0}`;
+  b.style.setProperty('--pw', (w - 2 * MARG) + 'mm'); b.style.setProperty('--ph', (h - 2 * MARG - 1) + 'mm');
+  $('#rod').textContent = `Escala 1:${den.toLocaleString('pt-BR')} · ${$('#pfo').value} ${$('#por').value === 'p' ? 'retrato' : 'paisagem'} · ${new Date().toLocaleDateString('pt-BR')}`;
+  b.classList.add('imp');
+  invOrig({animate:false}); imprimindo = true;
+  map.setView(c, zoomEscala(c.lat, den), {animate:false});
+  for (let k = 0; k < 50 && document.querySelector('.leaflet-tile-loading'); k++) await new Promise(r => setTimeout(r, 200));
+  render(); await new Promise(r => setTimeout(r, 400));
+  addEventListener('afterprint', () => {
+    imprimindo = false; b.classList.remove('imp'); invOrig({animate:false}); map.setView(c, z0, {animate:false});
+    $('#pnl').hidden = false; mostrarQuadro(); desenhar();
+  }, {once:true});
+  window.print();
+}
+$('#bimp').onclick = () => { $('#pnl').hidden = !$('#pnl').hidden; mostrarQuadro(); };
+$('#pfx').onclick = () => { $('#pnl').hidden = true; mostrarQuadro(); };
+$('#pgo').onclick = imprimir;
+$('#pnl').oninput = mostrarQuadro;
+map.on('move', mostrarQuadro);
+addEventListener('dragover', e => { e.preventDefault(); $('#drop').style.display = 'grid'; });
+addEventListener('dragleave', e => { if (!e.relatedTarget) $('#drop').style.display = 'none'; });
+addEventListener('drop', e => { e.preventDefault(); $('#drop').style.display = 'none'; carregar([...e.dataTransfer.files]); });
+</script>
+</body>
+</html>

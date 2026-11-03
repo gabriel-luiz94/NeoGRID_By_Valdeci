@@ -1,0 +1,3 @@
+[workspace]
+members = ["neogrid-core", "neogrid-build", "neogrid-query", "neogrid-app"]
+resolver = "2"

@@ -1,0 +1,13 @@
+[package]
+name = "neogrid-core"
+version = "0.1.0"
+edition = "2021"
+description = "Nucleo Rust do NeoGrid: parsing deterministico (CSV/WKT) com paridade ao JS"
+
+[lib]
+name = "neogrid_core"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "neogrid-parity"
+path = "src/bin/parity.rs"

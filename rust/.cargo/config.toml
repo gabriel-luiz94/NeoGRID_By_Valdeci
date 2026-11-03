@@ -1,0 +1,4 @@
+[target.x86_64-pc-windows-gnu]
+linker = "C:\\Users\\ORION\\w64devkit\\w64devkit\\bin\\gcc.exe"
+ar = "C:\\Users\\ORION\\w64devkit\\w64devkit\\bin\\ar.exe"
+rustflags = ["-L", "D:\\projetos\\BASE-NEOENERGIA PE\\rust\\.libfix"]

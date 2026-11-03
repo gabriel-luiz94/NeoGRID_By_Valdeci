@@ -1,0 +1,30 @@
+{
+  "name": "neogrid-neoenergia-pe",
+  "productName": "NeoGrid",
+  "version": "2.0.0",
+  "description": "Console desktop para gestão de redes, postes e ativos elétricos.",
+  "author": "NeoGrid",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "powershell -ExecutionPolicy Bypass -File rust/scripts/run-app.ps1",
+    "dev": "powershell -ExecutionPolicy Bypass -File rust/scripts/run-app.ps1",
+    "package": "powershell -ExecutionPolicy Bypass -File rust/scripts/build-app.ps1 -Bundle nsis",
+    "app:build": "powershell -ExecutionPolicy Bypass -File rust/scripts/build-app.ps1",
+    "app:install": "powershell -ExecutionPolicy Bypass -File rust/scripts/build-app.ps1 -Install",
+    "app:exe": "powershell -ExecutionPolicy Bypass -File rust/scripts/build-app.ps1 -Bundle none",
+    "app:release-run": "powershell -ExecutionPolicy Bypass -File rust/scripts/run-app.ps1 -Profile release",
+    "core:test": "cd rust && cargo test --target x86_64-pc-windows-gnu --workspace",
+    "core:build": "cd rust && cargo build --release --target x86_64-pc-windows-gnu --workspace",
+    "core:parity": "node rust/parity/contract-check.js",
+    "legacy:start": "electron .",
+    "legacy:dev": "electron . --dev",
+    "legacy:screenshots": "electron . --screenshots",
+    "legacy:package": "node scripts/package.js"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "rcedit": "^5.0.2"
+  }
+}

@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark" data-accent="orange">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost https:; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>NeoGrid · Console de redes</title>
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/core/desktop-tauri.js"></script>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/views.css">
+  <style id="printPageCss"></style>
+</head>
+<body>
+  <!-- ── Icon sprite ─────────────────────────────────────────────── -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true">
+    <defs>
+      <linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffb545"/><stop offset="1" stop-color="#f97316"/>
+      </linearGradient>
+    </defs>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.2 2.2 4.4 13.1c-.4.5 0 1.3.6 1.3h5.6l-1.1 7.1c-.1.8.9 1.2 1.4.6l8.7-10.9c.4-.5 0-1.3-.6-1.3h-5.5l1.2-7.1c.1-.8-.9-1.2-1.5-.6Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3Z"/><path d="M9 4v13M15 7v13"/></symbol>
+
+    <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M4 11.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.36a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.64 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63h.08a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.37 9v.08a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/><path d="M17 12h.01"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.1 2.9"/><path d="M6.6 6.6C3.9 8.5 2.5 12 2.5 12S6 18 12 18a9.8 9.8 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/></symbol>
+    <symbol id="i-minimize" viewBox="0 0 24 24"><path d="M8 3v5H3M21 8h-5V3M16 21v-5h5M3 16h5v5"/></symbol>
+    <symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 4h18l-7 8.5V20l-4 2v-9.5L3 4Z"/></symbol>
+    <symbol id="i-columns" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5 5L20 6.5"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.6 2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-satellite" viewBox="0 0 24 24"><path d="m13 7 4-4 4 4-4 4"/><path d="m11 9-4 4 4 4 4-4"/><path d="M8 6 6 4 4 6l2 2"/><path d="m16 18 2 2 2-2-2-2"/><path d="M6 18 3 21"/><path d="M18 6l3-3"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></symbol>
+    <symbol id="i-panel-right" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.3 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
+    <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.4 0 2-1 2-2 0-1.5-1.5-1.5-1.5-3 0-1 1-2 2.5-2h2A4 4 0 0 0 21 10c0-4-4-7-9-7Z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7" r="1"/></symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="m3 15 12-12 6 6L9 21l-6-6Z"/><path d="m7 11 2 2M10 8l2 2M13 5l2 2"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/></symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-hard-drive" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h.01M11 15h.01"/><path d="M3 11h18"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-file-csv" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6M8 16c.3.6.8 1 1.5 1 1.2 0 1.5-1.5 1.5-3s-.3-3-1.5-3c-.7 0-1.2.4-1.5 1M15 14c.3-.6.8-1 1.5-1 .9 0 1.4.8 1.4 1.5s-1.5.7-1.5 1.5c0 .7.6 1.5 1.6 1.5.6 0 1.1-.4 1.4-1"/></symbol>
+    <symbol id="i-crosshair-2" viewBox="0 0 24 24"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-panel-left" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20 13 11 22l-9-9V3h10l9 9Z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+    <symbol id="i-road" viewBox="0 0 24 24"><path d="M6 3 3 21M18 3l3 18M12 4v3M12 10v3M12 16v3"/></symbol>
+    <symbol id="i-kml" viewBox="0 0 24 24"><path d="m12 3 7 4v6c0 4-3 6.5-7 8-4-1.5-7-4-7-8V7l7-4Z"/><path d="m9 11 3 3 3-5"/></symbol>
+  </svg>
+
+  <!-- ── Custom title bar ────────────────────────────────────────── -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-left">
+      <span class="titlebar-logo"><svg><use href="#i-bolt"/></svg></span>
+      <span class="titlebar-name">NeoGrid</span>
+      <span class="titlebar-sep"></span>
+      <span class="titlebar-context">Neoenergia PE</span>
+    </div>
+    <div class="titlebar-center">
+      <span class="status-dot" id="titlebarDot"></span>
+      <span id="titlebarStatus">Ambiente local pronto</span>
+    </div>
+    <div class="titlebar-right">
+      <span class="titlebar-chip"><svg class="icon"><use href="#i-shield"/></svg> 100% local</span>
+    </div>
+  </div>
+
+  <!-- ── Application ─────────────────────────────────────────────── -->
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark"><svg><use href="#i-bolt"/></svg></div>
+        <div class="brand-copy">
+          <strong>NeoGrid</strong>
+          <span>Console de redes</span>
+        </div>
+        <button class="icon-btn sidebar-collapse" id="sidebarCollapse" title="Recolher menu" aria-label="Recolher menu">
+          <svg class="icon"><use href="#i-chevron-left"/></svg>
+        </button>
+      </div>
+
+      <div class="workspace-card">
+        <div class="workspace-avatar">PE</div>
+        <div class="workspace-copy">
+          <span>Workspace</span>
+          <strong>Neoenergia PE</strong>
+        </div>
+        <span class="badge badge-soft">Local</span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Navegação principal">
+        <span class="nav-label">Operação</span>
+        <button class="nav-item is-active" data-view="map" title="Mapa">
+          <span class="nav-icon"><svg class="icon"><use href="#i-map"/></svg></span>
+          <span class="nav-text">Mapa operacional</span>
+          <span class="nav-kbd">1</span>
+        </button>
+        <button class="nav-item" data-view="exports" title="Exportações">
+          <span class="nav-icon"><svg class="icon"><use href="#i-export"/></svg></span>
+          <span class="nav-text">Exportações</span>
+          <span class="nav-kbd">2</span>
+        </button>
+        <span class="nav-label nav-label-gap">Sistema</span>
+        <button class="nav-item" data-view="settings" title="Configurações">
+          <span class="nav-icon"><svg class="icon"><use href="#i-settings"/></svg></span>
+          <span class="nav-text">Configurações</span>
+          <span class="nav-kbd">3</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-data-card" id="sidebarDataCard">
+        <div class="sdc-head">
+          <span class="sdc-icon"><svg class="icon"><use href="#i-database"/></svg></span>
+          <div>
+            <span>Conjunto de dados</span>
+            <strong id="sidebarDatasetName">Nenhum arquivo</strong>
+          </div>
+        </div>
+        <div class="sdc-progress"><span id="sidebarProgressBar"></span></div>
+        <div class="sdc-meta">
+          <span id="sidebarRows">0 registros</span>
+          <span id="sidebarLayers">0 camadas</span>
+        </div>
+        <button class="btn btn-soft btn-block" id="sidebarImport" title="Importar banco de dados">
+          <svg class="icon"><use href="#i-plus"/></svg> <span>Importar banco de dados</span>
+        </button>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="operator">
+          <span class="operator-avatar">PE</span>
+          <div class="operator-copy">
+            <strong>Sessão local</strong>
+            <span>Dados no dispositivo</span>
+          </div>
+          <span class="online-dot" title="Pronto"></span>
+        </div>
+        <button class="icon-btn" id="sidebarHelp" title="Atalhos e ajuda" aria-label="Atalhos e ajuda">
+          <svg class="icon"><use href="#i-help"/></svg>
+        </button>
+      </div>
+      <button class="sidebar-expand" id="sidebarExpand" title="Expandir menu" aria-label="Expandir menu">
+        <svg class="icon"><use href="#i-chevron-right"/></svg>
+      </button>
+    </aside>
+
+    <div class="main-column">
+      <header class="topbar">
+        <div class="page-heading">
+          <span class="eyebrow" id="pageEyebrow">Operação</span>
+          <div class="page-title-row">
+            <h1 id="pageTitle">Mapa operacional</h1>
+            <span class="page-badge" id="pageBadge" hidden></span>
+          </div>
+          <p id="pageSubtitle">Explore postes, instalações e redes elétricas em um só lugar.</p>
+        </div>
+
+        <div class="topbar-search" id="searchWrap">
+          <svg class="icon search-icon"><use href="#i-search"/></svg>
+          <input id="globalSearch" type="search" placeholder="Buscar poste, instalação, endereço ou coordenada…" autocomplete="off" spellcheck="false" aria-label="Buscar ativos e endereços">
+          <kbd class="search-kbd">Ctrl K</kbd>
+          <div class="search-results" id="searchResults" hidden></div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="icon-btn tooltip" id="themeToggle" data-tooltip="Alternar tema" aria-label="Alternar tema">
+            <svg class="icon icon-moon"><use href="#i-moon"/></svg>
+            <svg class="icon icon-sun"><use href="#i-sun"/></svg>
+          </button>
+          <button class="icon-btn tooltip" id="printTop" data-tooltip="Imprimir mapa" aria-label="Imprimir mapa">
+            <svg class="icon"><use href="#i-printer"/></svg>
+          </button>
+          <button class="btn btn-primary" id="topImport">
+            <svg class="icon"><use href="#i-plus"/></svg>
+            <span>Importar banco de dados</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="views" id="views">
+        <!-- ══ MAP ══════════════════════════════════════════════════ -->
+        <section class="view view-map is-active" data-view="map" aria-label="Mapa operacional">
+          <div class="map-layout">
+            <aside class="map-panel">
+              <div class="panel-tabs" role="tablist">
+                <button class="panel-tab is-active" data-panel-tab="layers" role="tab">Camadas</button>
+                <button class="panel-tab" data-panel-tab="basemap" role="tab">Fundo</button>
+                <button class="panel-tab" data-panel-tab="display" role="tab">Exibição</button>
+                <button class="icon-btn panel-collapse" id="mapPanelCollapse" title="Recolher painel" aria-label="Recolher painel">
+                  <svg class="icon"><use href="#i-chevron-left"/></svg>
+                </button>
+              </div>
+              <div class="map-panel-scroll">
+                <div class="panel-pane is-active" data-panel="layers">
+                  <div class="panel-section">
+                    <div class="panel-section-head">
+                      <span>Camadas de dados</span>
+                      <button class="ghost-btn" id="toggleAllLayers">Ocultar tudo</button>
+                    </div>
+                    <div class="layer-list" id="layerList"></div>
+                  </div>
+                  <div class="panel-section">
+                    <div class="panel-section-head"><span>Resumo do conjunto</span></div>
+                    <div class="map-summary" id="mapStats"></div>
+                  </div>
+                  <div class="panel-quick-links">
+                    <button class="link-btn" data-goto="exports">Exportações <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="panel-pane" data-panel="basemap" hidden>
+                  <div class="panel-section">
+                    <div class="panel-section-head"><span>Mapa de fundo</span></div>
+                    <div class="basemap-grid" id="basemapGrid"></div>
+                  </div>
+                  <div class="panel-section">
+                    <div class="panel-section-head"><span>Transparência</span><span class="value-chip" id="opacityValue">0%</span></div>
+                    <input type="range" id="basemapOpacity" class="range" min="0" max="90" value="0" step="5" aria-label="Transparência do mapa de fundo">
+                    <p class="field-hint">Aumente para destacar as camadas de rede sobre o mapa.</p>
+                  </div>
+                  <div class="panel-section">
+                    <div class="panel-section-head"><span>Elementos do mapa</span></div>
+                    <label class="switch-row">
+                      <span><strong>Barra de escala</strong><small>Escala dinâmica no mapa</small></span>
+                      <input type="checkbox" id="toggleScalebar" class="switch" checked>
+                    </label>
+                    <label class="switch-row">
+                      <span><strong>Norte magnético</strong><small>Indicador de orientação</small></span>
+                      <input type="checkbox" id="toggleNorth" class="switch" checked>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="panel-pane" data-panel="display" hidden>
+                  <div class="panel-section">
+                    <div class="panel-section-head"><span>Rótulos</span><span class="value-chip" id="labelZoomChip">Zoom 19</span></div>
+                    <label class="switch-row">
+                      <span><strong>Mostrar rótulos</strong><small>Postes, redes e instalações</small></span>
+                      <input type="checkbox" id="toggleLabels" class="switch" checked>
+                    </label>
+                    <button class="btn btn-ghost btn-sm btn-block" type="button" data-labels-open>
+                      <svg class="icon"><use href="#i-tag"/></svg> Configurar campos e anotações
+                    </button>
+                    <label class="select-row">
+                      <span><strong>Exibir a partir de</strong><small>Nível de aproximação mínimo</small></span>
+                      <select id="labelZoom" class="select select-sm">
+                        <option value="15">Zoom 15</option>
+                        <option value="16">Zoom 16</option>
+                        <option value="18">Zoom 18</option>
+                        <option value="19" selected>Zoom 19</option>
+                      </select>
+                    </label>
+                    <p class="field-hint">Escolha os campos por camada no construtor de rótulos. Rótulos que colidem são ocultados automaticamente.</p>
+                  </div>
+                  <details class="panel-details">
+                    <summary>Desempenho e diagnóstico</summary>
+                    <div class="perf-readout">
+                      <div><span>Elementos na tela</span><strong id="perfVisible">0</strong></div>
+                      <div><span>Rótulos desenhados</span><strong id="perfLabels">0</strong></div>
+                      <div><span>Tempo de renderização</span><strong id="perfTime">0 ms</strong></div>
+                    </div>
+                    <p class="field-hint">Somente a área visível é processada. A otimização automática ajusta o custo de desenho.</p>
+                  </details>
+                  <details class="panel-details">
+                    <summary>Atalhos do mapa</summary>
+                    <div class="shortcut-list compact">
+                      <div><span>Ir para os dados</span><kbd>F</kbd></div>
+                      <div><span>Escala 1:1000</span><kbd>S</kbd></div>
+                      <div><span>Fechar detalhes</span><kbd>Esc</kbd></div>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </aside>
+
+            <div class="map-stage" id="mapStage">
+              <div id="map" aria-label="Mapa de postes, instalações e redes"></div>
+
+              <div class="map-float-toolbar">
+                <div class="toolbar-group">
+                  <button class="map-tool tooltip" id="mapPanelToggle" data-tooltip="Ocultar painel de camadas" aria-label="Mostrar ou ocultar painel de camadas">
+                    <svg class="icon"><use href="#i-panel-left"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapFit" data-tooltip="Ir para os dados (F)" aria-label="Ir para os dados">
+                    <svg class="icon"><use href="#i-crosshair"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapScale1000" data-tooltip="Escala 1:1000 (S)" aria-label="Escala 1:1000">
+                    <span class="tool-text">1:1000</span>
+                  </button>
+                  <button class="map-tool tooltip is-active" id="mapLabels" data-tooltip="Rótulos e anotações" aria-label="Configurar rótulos e anotações">
+                    <svg class="icon"><use href="#i-tag"/></svg>
+                  </button>
+                </div>
+                <div class="toolbar-sep"></div>
+                <div class="toolbar-group">
+                  <button class="map-tool tooltip" id="mapStreets" data-tooltip="Arruamento (OpenStreetMap)" aria-label="Arruamento do OpenStreetMap">
+                    <svg class="icon"><use href="#i-road"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapKml" data-tooltip="KML: pontos, linhas e áreas" aria-label="KML">
+                    <svg class="icon"><use href="#i-kml"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapPrint" data-tooltip="Imprimir / PDF" aria-label="Imprimir ou salvar PDF">
+                    <svg class="icon"><use href="#i-printer"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapDxf" data-tooltip="Exportar DXF" aria-label="Exportar DXF">
+                    <svg class="icon"><use href="#i-export"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapFullscreen" data-tooltip="Tela cheia" aria-label="Tela cheia">
+                    <svg class="icon"><use href="#i-maximize"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="map-float-right">
+                <div class="map-zoom">
+                  <button id="mapZoomIn" aria-label="Aproximar"><svg class="icon"><use href="#i-plus"/></svg></button>
+                  <span class="zoom-divider"></span>
+                  <button id="mapZoomOut" aria-label="Afastar"><svg class="icon"><use href="#i-minus"/></svg></button>
+                </div>
+              </div>
+
+              <div class="map-notice" id="mapNotice" hidden>
+                <svg class="icon"><use href="#i-info"/></svg>
+                <span id="mapNoticeText"></span>
+                <button class="icon-btn" id="mapNoticeClose" aria-label="Fechar aviso"><svg class="icon"><use href="#i-x"/></svg></button>
+              </div>
+
+              <div class="map-legend" id="mapLegend">
+                <span class="legend-title">Legenda</span>
+                <span class="legend-item"><i style="--c: var(--layer-poste)"></i>Postes</span>
+                <span class="legend-item"><i style="--c: var(--layer-bt)"></i>Rede BT</span>
+                <span class="legend-item"><i style="--c: var(--layer-mt)"></i>Rede MT</span>
+                <span class="legend-item"><i style="--c: var(--layer-inst)"></i>Instalações</span>
+              </div>
+
+              <div class="map-scale-control" id="mapScaleControl">
+                <span class="scale-bar" id="mapScaleBar"><i></i></span>
+                <span id="mapScaleDistance">100 m</span>
+                <span id="mapScaleLabel">1:50.000</span>
+              </div>
+
+              <div class="map-north" id="mapNorth" aria-label="Norte">N<span>▲</span></div>
+
+              <div class="map-empty-overlay" id="mapEmptyOverlay">
+                <div class="empty-map-card">
+                  <div class="empty-map-icon"><svg class="icon"><use href="#i-map"/></svg></div>
+                  <h2>Seu território começa aqui</h2>
+                  <p>Importe os CSVs de postes, instalações e redes BT/MT para visualizar a operação completa no mapa.</p>
+                  <button class="btn btn-primary" id="mapEmptyImport">
+                    <svg class="icon"><use href="#i-upload"/></svg> Importar banco de dados
+                  </button>
+                  <span class="empty-map-hint">Arraste os arquivos para qualquer lugar da janela</span>
+                </div>
+              </div>
+
+              <div class="dxf-instruction" id="dxfInstruction" hidden>
+                <svg class="icon"><use href="#i-crosshair"/></svg>
+                <span>Arraste no mapa para selecionar a área do DXF</span>
+                <kbd>Esc</kbd>
+                <button class="btn btn-sm btn-ghost" id="dxfCancelTop">Cancelar</button>
+              </div>
+
+              <aside class="dxf-dock" id="dxfDock" hidden>
+                <div class="dxf-dock-head">
+                  <div class="dock-icon"><svg class="icon"><use href="#i-export"/></svg></div>
+                  <div><strong>Exportar DXF</strong><span id="dxfAreaInfo">Área selecionada</span></div>
+                  <button class="icon-btn" id="dxfDockClose" aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+                </div>
+                <div class="dxf-dock-body">
+                  <label class="field-label" for="dxfScale">Escala do desenho</label>
+                  <select id="dxfScale" class="select">
+                    <option value="1000" selected>1:1000 · posições em metros</option>
+                    <option value="500">1:500 · vãos em 2×</option>
+                  </select>
+                  <label class="check-row">
+                    <input type="checkbox" id="dxfStreets" checked>
+                    <span>Incluir arruamento carregado</span>
+                  </label>
+                  <div class="dxf-inline-note">
+                    <span id="dxfStreetsCount">nenhuma via — use Arruamento no mapa</span>
+                    <button class="ghost-btn" type="button" id="dxfStreetsManage">Gerenciar</button>
+                  </div>
+                  <label class="check-row">
+                    <input type="checkbox" id="dxfKml" checked>
+                    <span>Incluir KML carregado</span>
+                  </label>
+                  <div class="dxf-inline-note">
+                    <span id="dxfKmlCount">nenhum KML carregado</span>
+                    <button class="ghost-btn" type="button" id="dxfKmlManage">Gerenciar</button>
+                  </div>
+                  <div class="dxf-summary" id="dxfSummary"></div>
+                  <button class="btn btn-ghost btn-sm btn-block" id="dxfSettings" type="button">
+                    <svg class="icon"><use href="#i-grid"/></svg> Configurar desenho (mapa e DXF)
+                  </button>
+                  <div class="dxf-dock-actions">
+                    <button class="btn btn-primary btn-block" id="dxfExport">
+                      <svg class="icon"><use href="#i-download"/></svg> Gerar e salvar DXF
+                    </button>
+                    <button class="btn btn-ghost btn-sm" id="dxfNewArea">Selecionar outra área</button>
+                  </div>
+                </div>
+              </aside>
+
+              <div class="dxf-instruction streets-instruction" id="streetsInstruction" hidden>
+                <svg class="icon"><use href="#i-road"/></svg>
+                <span>Arraste no mapa para baixar o arruamento do OpenStreetMap</span>
+                <kbd>Esc</kbd>
+                <button class="btn btn-sm btn-ghost" id="streetsCancelTop">Cancelar</button>
+              </div>
+
+              <aside class="dxf-dock map-side-dock" id="streetsDock" hidden>
+                <div class="dxf-dock-head">
+                  <div class="dock-icon"><svg class="icon"><use href="#i-road"/></svg></div>
+                  <div><strong>Arruamento OSM</strong><span id="streetsInfo">Nenhuma via carregada</span></div>
+                  <button class="icon-btn" id="streetsDockClose" aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+                </div>
+                <div class="dxf-dock-body">
+                  <div class="streets-actions">
+                    <button class="btn btn-primary btn-sm" id="streetsSelect">Selecionar área</button>
+                    <button class="btn btn-ghost btn-sm" id="streetsVisible">Área visível</button>
+                  </div>
+                  <div class="streets-progress" id="streetsProgress" hidden>
+                    <span class="search-spinner"></span>
+                    <span id="streetsProgressText">Consultando o OpenStreetMap…</span>
+                  </div>
+                  <label class="check-row">
+                    <input type="checkbox" id="streetsShow" checked>
+                    <span>Mostrar no mapa</span>
+                  </label>
+                  <label class="check-row">
+                    <input type="checkbox" id="streetsLabels">
+                    <span>Nomes das ruas</span>
+                  </label>
+                  <div class="dxf-summary" id="streetsSummary"></div>
+                  <div class="dxf-dock-actions">
+                    <button class="btn btn-ghost btn-sm" id="streetsFit">Ir para o arruamento</button>
+                    <button class="btn btn-ghost btn-sm" id="streetsClear">Limpar arruamento</button>
+                  </div>
+                  <p class="field-hint">O arruamento fica no programa separado do DXF. Na exportação, marque “Incluir arruamento carregado”.</p>
+                </div>
+              </aside>
+
+              <aside class="dxf-dock map-side-dock" id="kmlDock" hidden>
+                <div class="dxf-dock-head">
+                  <div class="dock-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
+                  <div><strong>KML</strong><span id="kmlInfo">Nenhum KML carregado</span></div>
+                  <button class="icon-btn" id="kmlDockClose" aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+                </div>
+                <div class="dxf-dock-body">
+                  <div class="streets-actions">
+                    <button class="btn btn-primary btn-sm" id="kmlImportQuick">Importar KML…</button>
+                    <button class="btn btn-ghost btn-sm" id="kmlSettingsQuick">O que exibir</button>
+                  </div>
+                  <div class="dxf-summary" id="kmlSummary"></div>
+                  <div class="dxf-dock-actions">
+                    <button class="btn btn-ghost btn-sm" id="kmlFit">Ir para o KML</button>
+                    <button class="btn btn-ghost btn-sm" id="kmlClear">Remover todos</button>
+                  </div>
+                  <p class="field-hint">Escolha pontos, linhas, áreas e nomes. Só o que estiver visível no mapa entra no DXF.</p>
+                </div>
+              </aside>
+            </div>
+
+            <aside class="inspector" id="inspector">
+              <div class="inspector-head">
+                <div>
+                  <span class="eyebrow">Detalhes do ativo</span>
+                  <h2 id="inspectorTitle">Nenhum ativo selecionado</h2>
+                </div>
+                <button class="icon-btn" id="inspectorClose" aria-label="Fechar detalhes"><svg class="icon"><use href="#i-x"/></svg></button>
+              </div>
+              <div class="inspector-body" id="inspectorBody"></div>
+            </aside>
+          </div>
+        </section>
+
+        <!-- ══ EXPORTS ══════════════════════════════════════════════ -->
+        <section class="view view-exports" data-view="exports" aria-label="Exportações">
+          <div class="view-scroll exports-wrap">
+            <div class="export-list">
+              <article class="card export-row" id="exportDxfCard">
+                <div class="export-icon export-icon-orange"><svg class="icon"><use href="#i-ruler"/></svg></div>
+                <div class="export-row-copy">
+                  <h3>Desenho DXF <span>DWG / CAD</span></h3>
+                  <p>Área selecionada em UTM SIRGAS 2000, com camadas, cores e arruamento opcional.</p>
+                </div>
+                <div class="export-row-actions">
+                  <button class="btn btn-primary btn-sm" id="exportDxfSelect">
+                    <svg class="icon"><use href="#i-crosshair"/></svg> Selecionar área
+                  </button>
+                  <button class="btn btn-ghost btn-sm" id="exportDxfView">Área visível</button>
+                </div>
+              </article>
+
+              <article class="card export-row" id="exportStreetsCard">
+                <div class="export-icon export-icon-teal"><svg class="icon"><use href="#i-road"/></svg></div>
+                <div class="export-row-copy">
+                  <h3>Arruamento OSM <span>OpenStreetMap</span></h3>
+                  <p>Selecione a área, baixe as ruas para o mapa e inclua no DXF só quando quiser.</p>
+                </div>
+                <div class="export-row-actions">
+                  <button class="btn btn-primary btn-sm" id="exportStreetsSelect">
+                    <svg class="icon"><use href="#i-crosshair"/></svg> Selecionar área
+                  </button>
+                  <button class="btn btn-ghost btn-sm" id="exportStreetsView">Área visível</button>
+                </div>
+              </article>
+
+              <article class="card export-row" id="exportKmlCard">
+                <div class="export-icon export-icon-violet"><svg class="icon"><use href="#i-kml"/></svg></div>
+                <div class="export-row-copy">
+                  <h3>KML <span>Google Earth</span></h3>
+                  <p>Abra pontos, linhas e áreas, vá até a coordenada e escolha o que aparece e o que vai para o DXF.</p>
+                </div>
+                <div class="export-row-actions">
+                  <button class="btn btn-primary btn-sm" id="exportKmlImport">
+                    <svg class="icon"><use href="#i-upload"/></svg> Abrir KML
+                  </button>
+                  <button class="btn btn-ghost btn-sm" id="exportKmlManage">Gerenciar</button>
+                </div>
+              </article>
+
+              <article class="card export-row" id="exportCsvCard">
+                <div class="export-icon export-icon-teal"><svg class="icon"><use href="#i-file-csv"/></svg></div>
+                <div class="export-row-copy">
+                  <h3>Dados em CSV <span>Planilha</span></h3>
+                  <p>Recorte por camada, com todos os registros e colunas da camada.</p>
+                </div>
+                <div class="export-row-actions">
+                  <button class="btn btn-primary btn-sm" id="exportCsvGo">
+                    <svg class="icon"><use href="#i-download"/></svg> Exportar CSV
+                  </button>
+                </div>
+              </article>
+
+              <article class="card export-row">
+                <div class="export-icon export-icon-violet"><svg class="icon"><use href="#i-printer"/></svg></div>
+                <div class="export-row-copy">
+                  <h3>Impressão / PDF <span>Prancha</span></h3>
+                  <p>Folha A4 a A0 com escala exata, carimbo, norte e legenda.</p>
+                </div>
+                <div class="export-row-actions">
+                  <button class="btn btn-primary btn-sm" id="exportPrintGo">
+                    <svg class="icon"><use href="#i-printer"/></svg> Configurar prancha
+                  </button>
+                </div>
+              </article>
+            </div>
+
+            <div class="exports-lower">
+              <article class="card">
+                <div class="card-head">
+                  <div><span class="eyebrow">Histórico</span><h3>Exportações desta sessão</h3></div>
+                  <span class="card-chip" id="exportHistoryCount">0 arquivos</span>
+                </div>
+                <div class="export-history" id="exportHistory">
+                  <div class="history-empty">
+                    <svg class="icon"><use href="#i-export"/></svg>
+                    <p>As exportações geradas nesta sessão aparecem aqui.</p>
+                  </div>
+                </div>
+              </article>
+              <details class="card export-ref">
+                <summary><span class="eyebrow">Referência</span><h3>Camadas do DXF</h3></summary>
+                <div class="layer-guide">
+                  <div><i style="--c:#fbbf24"></i><span>POSTES / TXT_POSTES</span><small>Postes e rótulos</small></div>
+                  <div><i style="--c:#2dd4bf"></i><span>REDE_BT / TXT_BT</span><small>Rede de baixa tensão</small></div>
+                  <div><i style="--c:#fb7185"></i><span>REDE_MT / TXT_MT</span><small>Rede de média tensão</small></div>
+                  <div><i style="--c:#a78bfa"></i><span>INSTALACOES / TXT_INSTALACOES</span><small>Equipamentos e rótulos</small></div>
+                  <div><i style="--c:#94a3b8"></i><span>ARRUAMENTO / TXT_RUAS</span><small>Vias do OpenStreetMap</small></div>
+                </div>
+                <p class="field-hint">Texto com altura 1,5 m no desenho. No 1:500, apenas os vãos são ampliados; símbolos e textos mantêm o tamanho.</p>
+              </details>
+            </div>
+          </div>
+        </section>
+
+        <!-- ══ SETTINGS ═════════════════════════════════════════════ -->
+        <section class="view view-settings" data-view="settings" aria-label="Configurações">
+          <div class="view-scroll settings-wrap">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Preferências</span>
+                <h2>Configurações do ambiente</h2>
+                <p>Ajuste a aparência, o comportamento do mapa e o desempenho do aplicativo.</p>
+              </div>
+            </div>
+
+            <div class="settings-grid">
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-palette"/></svg></div>
+                  <div><h3>Aparência</h3><p>Tema e cor de destaque da interface.</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Tema</strong><small>Escolha entre o modo escuro e claro.</small></div>
+                  <div class="segmented" id="themeSegmented">
+                    <button data-theme-value="dark"><svg class="icon"><use href="#i-moon"/></svg> Escuro</button>
+                    <button data-theme-value="light"><svg class="icon"><use href="#i-sun"/></svg> Claro</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Cor de destaque</strong><small>Aplicada a botões, seleções e indicadores.</small></div>
+                  <div class="swatches" id="accentSwatches">
+                    <button data-accent-value="orange" style="--sw:#f5a524" aria-label="Laranja"></button>
+                    <button data-accent-value="cyan" style="--sw:#22d3ee" aria-label="Ciano"></button>
+                    <button data-accent-value="green" style="--sw:#34d399" aria-label="Verde"></button>
+                    <button data-accent-value="violet" style="--sw:#a78bfa" aria-label="Violeta"></button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Densidade</strong><small>Mais registros visíveis por tela.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="compactDensity" class="switch"><span>Compacta</span></label>
+                </div>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-map"/></svg></div>
+                  <div><h3>Mapa</h3><p>Preferências iniciais de visualização.</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Fundo padrão</strong><small>Aplicado ao abrir o aplicativo.</small></div>
+                  <select class="select select-sm" id="settingsBasemap"></select>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Escala padrão</strong><small>Usada no botão 1:1000 e na impressão.</small></div>
+                  <select class="select select-sm" id="settingsScale">
+                    <option value="500">1:500</option>
+                    <option value="1000" selected>1:1.000</option>
+                    <option value="2000">1:2.000</option>
+                    <option value="5000">1:5.000</option>
+                  </select>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Rótulos ao abrir</strong><small>Exibe rótulos de ativos automaticamente.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="settingsLabels" class="switch" checked><span>Ativados</span></label>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Rótulos e anotações</strong><small>Escolha os campos exibidos em cada camada, sem digitar modelos.</small></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-labels-open>Configurar</button>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Campos do detalhe</strong><small>Personalize as colunas exibidas ao selecionar um ativo.</small></div>
+                  <button class="btn btn-ghost btn-sm" id="settingsFields">Configurar campos</button>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Desenho da rede</strong><small>Blocos por atributos e por tipo, cores e rótulos no mapa e no DXF.</small></div>
+                  <button class="btn btn-ghost btn-sm" type="button" data-dxf-settings-open>Configurar</button>
+                </div>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-zap"/></svg></div>
+                  <div><h3>Desempenho</h3><p>Controles para bases extensas.</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Otimização automática</strong><small>Reduz o custo de desenho quando necessário e mantém o mapa fluido.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="settingsAdaptive" class="switch" checked><span>Ativada</span></label>
+                </div>
+                <details class="settings-details">
+                  <summary>Ajustes avançados <span>limites e qualidade</span></summary>
+                  <div class="setting-row">
+                    <div><strong>Máx. de elementos no mapa</strong><small>Limite por renderização para manter a fluidez.</small></div>
+                    <select class="select select-sm" id="settingsMaxElements">
+                      <option value="10000">10.000</option>
+                      <option value="12000" selected>12.000</option>
+                      <option value="20000">20.000</option>
+                      <option value="40000">40.000</option>
+                      <option value="80000">80.000</option>
+                    </select>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Máx. de rótulos</strong><small>Rótulos excedentes são omitidos.</small></div>
+                    <select class="select select-sm" id="settingsMaxLabels">
+                      <option value="1000">1.000</option>
+                      <option value="2000" selected>2.000</option>
+                      <option value="4000">4.000</option>
+                      <option value="8000">8.000</option>
+                    </select>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Qualidade de renderização</strong><small>DPI do canvas do mapa. Automática acompanha a tela e o modo de otimização.</small></div>
+                    <select class="select select-sm" id="settingsDpr">
+                      <option value="0" selected>Automática (recomendada)</option>
+                      <option value="1">Econômica · 1×</option>
+                      <option value="1.5">Equilibrada · 1,5×</option>
+                      <option value="2">Nítida · 2×</option>
+                    </select>
+                  </div>
+                  <p class="field-hint">Desative a otimização automática para usar os limites e o DPI exatamente como definidos.</p>
+                </details>
+                <p class="field-hint">Em bases muito grandes, prefira zoom mais próximo e desative rótulos.</p>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-database"/></svg></div>
+                  <div><h3>Dados e persistência</h3><p>A base fica salva e compactada neste computador.</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Registros carregados</strong><small id="settingsDataSummary">Nenhum conjunto carregado.</small></div>
+                  <span class="badge badge-soft" id="settingsDataBadge">Vazio</span>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Salvamento automático</strong><small>Compacta a base (dicionário + gzip) e guarda em disco após cada importação.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="settingsAutosave" class="switch" checked><span>Ativado</span></label>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Armazenamento local</strong><small id="projectStorageSummary">Verificando disco…</small></div>
+                  <span class="badge badge-soft" id="projectStorageBadge">—</span>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Projeto portátil (.neogrid)</strong><small>Leve a base compactada para outra máquina ou guarde uma cópia.</small></div>
+                  <div class="setting-actions">
+                    <button class="btn btn-ghost btn-sm" id="projectOpen">Abrir…</button>
+                    <button class="btn btn-ghost btn-sm" id="projectSaveAs">Exportar…</button>
+                    <button class="btn btn-soft btn-sm" id="projectSaveNow">Salvar agora</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Preferências</strong><small>Restaura tema, mapa, rótulos e campos para o padrão.</small></div>
+                  <button class="btn btn-ghost btn-sm" id="settingsResetPrefs">Restaurar padrão</button>
+                </div>
+                <div class="setting-row danger-row">
+                  <div><strong>Limpar base de dados</strong><small>Remove os registros da memória e apaga o snapshot em disco. Os arquivos originais não são alterados.</small></div>
+                  <button class="btn btn-danger-ghost btn-sm" id="settingsClearData">
+                    <svg class="icon"><use href="#i-trash"/></svg> Limpar
+                  </button>
+                </div>
+              </article>
+
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <div class="status-left">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Pronto</span>
+        </div>
+        <div class="status-center" id="statusData">Nenhum dado carregado</div>
+        <div class="status-right">
+          <span id="statusCoords" class="status-mono">—</span>
+          <span class="status-sep"></span>
+          <span id="statusZoom" class="status-mono">Zoom 12</span>
+          <span class="status-sep"></span>
+          <span id="statusScale" class="status-mono">1:50.000</span>
+          <span class="status-sep"></span>
+          <span class="status-local"><svg class="icon"><use href="#i-lock"/></svg> Local</span>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ── Floating print composer ─────────────────────────────────── -->
+  <aside class="floating-panel print-panel" id="printPanel" hidden>
+    <div class="floating-head">
+      <div class="dock-icon"><svg class="icon"><use href="#i-printer"/></svg></div>
+      <div><strong>Imprimir / PDF</strong><span>Prancha com escala exata</span></div>
+      <button class="icon-btn" id="printClose" aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="floating-body">
+      <div class="form-row two">
+        <label class="field"><span>Folha</span><select class="select" id="printSheet"></select></label>
+        <label class="field"><span>Orientação</span><select class="select" id="printOrientation"><option value="l">Paisagem</option><option value="p">Retrato</option></select></label>
+      </div>
+      <div class="form-row two">
+        <label class="field"><span>Escala 1:</span><input class="input" id="printScale" type="number" min="100" step="100" value="1000" list="printScaleList"></label>
+        <label class="field"><span>Formato</span><select class="select" id="printFormat"><option value="pdf">PDF / impressão</option></select></label>
+      </div>
+      <datalist id="printScaleList"><option value="200"><option value="500"><option value="1000"><option value="2000"><option value="2500"><option value="5000"><option value="10000"></datalist>
+      <label class="field"><span>Título da prancha</span><input class="input" id="printTitleInput" value="Mapa de redes e ativos" maxlength="80"></label>
+      <label class="check-row"><input type="checkbox" id="printLegend" checked><span>Incluir legenda no rodapé</span></label>
+      <div class="print-preview-info">
+        <svg class="icon"><use href="#i-info"/></svg>
+        <p id="printInfo">A área útil da folha está destacada no mapa. Mova e aproxime para enquadrar.</p>
+      </div>
+      <button class="btn btn-primary btn-block" id="printGo">
+        <svg class="icon"><use href="#i-printer"/></svg> Abrir impressão
+      </button>
+      <p class="field-hint">Na janela de impressão, selecione “Salvar como PDF” para gerar o arquivo.</p>
+    </div>
+  </aside>
+
+  <!-- ── Dialogs ─────────────────────────────────────────────────── -->
+  <dialog class="modal" id="importDialog">
+    <form method="dialog" class="modal-shell" id="importForm">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-upload"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Importar dados</h2>
+          <p>CSVs com cabeçalho</p>
+        </div>
+        <button class="icon-btn" data-close value="cancel" aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <div class="dropzone dropzone-compact" id="importDrop">
+          <input type="file" id="importInput" accept=".csv,.txt,.neogrid" multiple hidden>
+          <div class="dropzone-glow"></div>
+          <div class="dropzone-icon"><svg class="icon"><use href="#i-upload"/></svg></div>
+          <strong>Arraste os CSVs aqui</strong>
+          <span>ou <button type="button" class="link-btn" id="importBrowse">selecione no computador</button></span>
+          <small>Postes · Instalações · Rede BT/MT · .neogrid</small>
+        </div>
+
+        <div class="import-files" id="importFiles"></div>
+
+        <details class="import-advanced">
+          <summary>Opções de leitura <span>separador, codificação</span></summary>
+          <div class="import-options">
+            <div class="import-options-fields">
+              <label class="field">
+                <span>Separador</span>
+                <select class="select select-sm" id="importDelimiter">
+                  <option value="auto">Detectar automaticamente</option>
+                  <option value=";">Ponto e vírgula (;)</option>
+                  <option value=",">Vírgula (,)</option>
+                  <option value="tab">Tabulação</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Codificação</span>
+                <select class="select select-sm" id="importEncoding">
+                  <option value="auto">Detectar automaticamente</option>
+                  <option value="utf-8">UTF-8</option>
+                  <option value="windows-1252">Windows-1252</option>
+                </select>
+              </label>
+            </div>
+            <label class="check-row">
+              <input type="checkbox" id="importClear">
+              <span>Limpar base antes de importar</span>
+            </label>
+          </div>
+          <div class="import-note">
+            <svg class="icon"><use href="#i-info"/></svg>
+            <p>O tipo de camada é identificado pelo nome do arquivo. Para a base completa, importe uma regional por vez.</p>
+          </div>
+        </details>
+
+        <div class="import-db">
+          <div class="import-db-copy">
+            <strong>Base completa em SQLite</strong>
+            <span>Milhões de registros? Abra o .sqlite ou gere a partir dos CSVs.</span>
+          </div>
+          <div class="import-db-actions">
+            <button class="btn btn-soft btn-sm" type="button" id="importOpenDb">Abrir base .sqlite…</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="importBuildDb">Gerar a partir de CSVs…</button>
+          </div>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info" id="importFootInfo">Nenhum arquivo selecionado</span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" type="button" id="importCancel">Cancelar</button>
+          <button class="btn btn-primary" type="button" id="importStart" disabled>Importar dados</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="fieldsDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-columns"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Campos do detalhe</h2>
+          <p>Escolha as colunas exibidas ao selecionar um ativo no mapa.</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <div class="field-tabs" id="fieldsTabs"></div>
+        <div class="field-list" id="fieldsList"></div>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info" id="fieldsInfo">As alterações são salvas automaticamente.</span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" type="button" id="fieldsReset">Restaurar padrão</button>
+          <button class="btn btn-primary" data-close>Concluir</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  
+
+  <dialog class="modal modal-sm" id="confirmDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon modal-head-icon-danger"><svg class="icon"><use href="#i-alert"/></svg></div>
+        <div class="modal-head-copy">
+          <h2 id="confirmTitle">Confirmar ação</h2>
+          <p id="confirmText">Esta ação não pode ser desfeita.</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <footer class="modal-foot">
+        <span class="modal-foot-info"></span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" value="cancel">Cancelar</button>
+          <button class="btn btn-danger" type="button" id="confirmGo">Confirmar</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="helpDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-help"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Atalhos e ajuda rápida</h2>
+          <p>Tudo o que você precisa para operar o NeoGrid.</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body help-body">
+        <div class="help-section">
+          <h3>Navegação</h3>
+          <div class="shortcut-list">
+            <div><span>Buscar ativos e endereços</span><kbd>Ctrl K</kbd></div>
+            <div><span>Abrir mapa / exportações / configurações</span><kbd>1 — 3</kbd></div>
+            <div><span>Importar banco de dados</span><kbd>Ctrl O</kbd></div>
+            <div><span>Fechar painéis e diálogos</span><kbd>Esc</kbd></div>
+          </div>
+        </div>
+        <div class="help-section">
+          <h3>Mapa</h3>
+          <div class="shortcut-list">
+            <div><span>Ir para a concentração de dados</span><kbd>F</kbd></div>
+            <div><span>Voltar à escala 1:1000</span><kbd>S</kbd></div>
+            <div><span>Aproximar / afastar</span><kbd>+ / −</kbd></div>
+            <div><span>Selecionar área para DXF</span><kbd>D</kbd></div>
+          </div>
+        </div>
+        <div class="help-section help-about">
+          <h3>Como os arquivos são lidos</h3>
+          <p>O NeoGrid aceita arquivos CSV com cabeçalho. As coordenadas podem vir em <code>GEO_X</code> / <code>GEO_Y</code> (WGS 84) ou em <code>GEOMETRIA_WKT</code>. O separador é detectado automaticamente, mas pode ser definido na importação.</p>
+          <p>Arquivos do mesmo tipo são combinados. Se houver colunas diferentes, os novos campos são incorporados sem perder registros anteriores.</p>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info">NeoGrid 2.0 · Console de redes</span>
+        <div class="modal-actions"><button class="btn btn-primary" data-close>Entendi</button></div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal modal-lg" id="rowDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon" id="rowDialogIcon"><svg class="icon"><use href="#i-pin"/></svg></div>
+        <div class="modal-head-copy">
+          <h2 id="rowDialogTitle">Detalhes do registro</h2>
+          <p id="rowDialogSubtitle">Atributos completos</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body row-dialog-body" id="rowDialogBody"></div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info" id="rowDialogFoot"></span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" type="button" id="rowCopy"><svg class="icon"><use href="#i-copy"/></svg> Copiar registro</button>
+          <button class="btn btn-primary" type="button" id="rowLocate"><svg class="icon"><use href="#i-crosshair"/></svg> Ver no mapa</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ── Drag & drop overlay ─────────────────────────────────────── -->
+  <dialog class="modal modal-lg" id="kmlDialog">
+    <form method="dialog" class="modal-shell" id="kmlForm">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>KML no mapa</h2>
+          <p>Pontos, linhas e áreas do Google Earth, com escolha do que vai para o DXF</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body kml-body">
+        <div class="kml-import-row">
+          <input type="file" id="kmlFileInput" accept=".kml" multiple hidden>
+          <button class="btn btn-primary btn-sm" type="button" id="kmlPick"><svg class="icon"><use href="#i-upload"/></svg> Escolher arquivos KML…</button>
+          <span class="kml-import-status" id="kmlImportStatus">Nenhum arquivo KML carregado.</span>
+          <label class="inline-switch"><input type="checkbox" id="kmlFitOnImport" class="switch" checked><span>Ir para o KML ao abrir</span></label>
+        </div>
+
+        <div class="kml-options-grid">
+          <section class="kml-options-card">
+            <strong>O que exibir</strong>
+            <label class="check-row"><input type="checkbox" id="kmlShowPoints" checked><span>Pontos</span></label>
+            <label class="check-row"><input type="checkbox" id="kmlShowLines" checked><span>Linhas</span></label>
+            <label class="check-row"><input type="checkbox" id="kmlShowPolygons" checked><span>Áreas / polígonos</span></label>
+            <label class="check-row"><input type="checkbox" id="kmlShowLabels" checked><span>Nomes</span></label>
+            <label class="check-row"><input type="checkbox" id="kmlUseKmlColors" checked><span>Usar as cores definidas no KML</span></label>
+          </section>
+          <section class="kml-options-card">
+            <strong>Cores quando o KML não define</strong>
+            <label class="kml-color-row"><span>Pontos</span><input type="color" id="kmlPointColor" value="#f472b6"></label>
+            <label class="kml-color-row"><span>Linhas</span><input type="color" id="kmlLineColor" value="#38bdf8"></label>
+            <label class="kml-color-row"><span>Áreas</span><input type="color" id="kmlPolygonColor" value="#22c55e"></label>
+          </section>
+        </div>
+
+        <div class="kml-files-head">
+          <strong>Arquivos carregados</strong>
+          <button class="ghost-btn" type="button" id="kmlClearAll">Remover todos</button>
+        </div>
+        <div class="kml-files" id="kmlFiles"></div>
+        <div class="kml-unsupported" id="kmlUnsupported"></div>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info">KML em WGS 84 (longitude, latitude). Modelos 3D e overlays são ignorados com aviso.</span>
+        <div class="modal-actions"><button class="btn btn-primary" data-close>Fechar</button></div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal modal-lg" id="dxfSettingsDialog">
+    <form method="dialog" class="modal-shell" id="dxfSettingsForm">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-grid"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Desenho da rede</h2>
+          <p>Blocos por atributos, cores e rótulos no mapa e no DXF</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <div class="dxf-settings-grid">
+          <section class="dxf-settings-section dxf-settings-wide dxf-library-section">
+            <h3>Biblioteca de blocos</h3>
+            <p class="field-hint">Carregue um DXF com os blocos dos postes e das instalações. As regras abaixo escolhem qual bloco usar em cada ativo.</p>
+            <div class="dxf-library-grid">
+              <div class="dxf-library-source">
+                <label class="field">
+                  <span>Arquivo de blocos (.dxf)</span>
+                  <input class="input" type="file" id="dxfBlockFile" accept=".dxf">
+                </label>
+                <p class="field-hint" id="dxfBlockStatus">Nenhum DXF de blocos carregado.</p>
+              </div>
+              <div class="dxf-library-defaults">
+                <div class="dxf-fallback-blocks">
+                  <label class="field">
+                    <span>Bloco padrão do poste</span>
+                    <select class="select" id="dxfBlockPoste"></select>
+                  </label>
+                  <label class="field">
+                    <span>Bloco padrão da instalação</span>
+                    <select class="select" id="dxfBlockInst"></select>
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Tamanho do bloco no mapa (px)</span>
+                  <input class="input" type="number" id="dxfBlockSize" min="8" max="120" step="1" value="20">
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="dxf-settings-section dxf-settings-wide">
+            <div class="dxf-section-head">
+              <div>
+                <h3>Posição e cor dos blocos</h3>
+                <p class="field-hint">
+                  O poste no CSV é o ponto da ponta. Use <strong>Ponta inferior</strong> para o bloco ficar
+                  apoiado na coordenada, como no mapa, em vez de o eixo cair no centro do símbolo.
+                </p>
+              </div>
+            </div>
+            <div class="dxf-block-style-grid">
+              <label class="field">
+                <span>Ponto de inserção do poste</span>
+                <select class="select" data-dxf-anchor="poste"></select>
+              </label>
+              <label class="field">
+                <span>Ponto de inserção da instalação</span>
+                <select class="select" data-dxf-anchor="inst"></select>
+              </label>
+              <label class="field">
+                <span>Cor do bloco do poste (ACI)</span>
+                <select class="select" data-dxf-block-color="poste"></select>
+              </label>
+              <label class="field">
+                <span>Cor do bloco da instalação (ACI)</span>
+                <select class="select" data-dxf-block-color="inst"></select>
+              </label>
+            </div>
+            <label class="check-row">
+              <input type="checkbox" id="dxfUniformBlockColors" checked>
+              <span>Uniformizar as cores internas dos blocos (BYBLOCK) — o preto/branco 7 é o padrão do CAD</span>
+            </label>
+            <p class="field-hint">Com a cor 7, o CAD mostra preto no papel branco e branco no fundo escuro. Escolha “Manter cores do bloco” para preservar as cores originais do DXF da biblioteca.</p>
+          </section>
+
+          <section class="dxf-settings-section dxf-rules-section">
+            <div class="dxf-section-head">
+              <div>
+                <h3>Blocos por atributos</h3>
+                <p class="field-hint">
+                  Monte regras com uma ou mais condições. A primeira regra que combinar define o bloco.
+                  Ex.: <strong>MATERIAL contém CONCRETO</strong> e <strong>TIPO_PG é igual a DT</strong> → bloco do poste DT de concreto.
+                </p>
+              </div>
+            </div>
+            <div id="dxfBlockRules" class="dxf-rules"></div>
+          </section>
+
+          <section class="dxf-settings-section dxf-settings-wide dxf-rule-help">
+            <div class="dxf-rule-help-icon"><svg class="icon"><use href="#i-info"/></svg></div>
+            <p>
+              A ordem das regras importa: a primeira que combinar vence. Use <strong>todas</strong> para exigir todos os atributos
+              ou <strong>qualquer uma</strong> para aceitar alternativas. O mapa e o DXF usam exatamente a mesma regra.
+            </p>
+          </section>
+        </div>
+
+        <details class="dxf-advanced">
+          <summary>Ajustes avançados <span>mapeamento por tipo, formas, cores e modelos de texto</span></summary>
+          <div class="dxf-settings-grid">
+            <section class="dxf-settings-section dxf-settings-wide">
+              <h3>Mapeamento rápido por tipo</h3>
+              <p class="field-hint">
+                Atalho para tipos exatos encontrados nos CSVs. É usado quando nenhuma regra por atributos combinar.
+              </p>
+              <div id="dxfTypeBlocks" class="dxf-type-blocks"></div>
+            </section>
+
+            <section class="dxf-settings-section">
+              <h3>Formas sem bloco</h3>
+              <p class="field-hint">Usadas quando nenhum bloco estiver definido para o ativo.</p>
+              <label class="field">
+                <span>Poste</span>
+                <select class="select" id="dxfShapePoste">
+                  <option value="rectangle">Retângulo (atual)</option>
+                  <option value="circle">Círculo</option>
+                  <option value="triangle">Triângulo</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Instalação</span>
+                <select class="select" id="dxfShapeInst">
+                  <option value="auto">Automática por tipo</option>
+                  <option value="triangle">Triângulo (trafo)</option>
+                  <option value="circle">Círculo (ponto)</option>
+                  <option value="square">Quadrado (religadora)</option>
+                  <option value="line">Traço (chave)</option>
+                </select>
+              </label>
+            </section>
+
+            <section class="dxf-settings-section dxf-settings-wide">
+              <h3>Cores das camadas (ACI)</h3>
+              <div class="dxf-color-grid">
+                <label class="field"><span>Postes</span><select class="select" data-dxf-color="poste"></select></label>
+                <label class="field"><span>Instalações</span><select class="select" data-dxf-color="inst"></select></label>
+                <label class="field"><span>Rede BT</span><select class="select" data-dxf-color="bt"></select></label>
+                <label class="field"><span>Rede MT</span><select class="select" data-dxf-color="mt"></select></label>
+                <label class="field"><span>Rótulo postes</span><select class="select" data-dxf-color="txtPoste"></select></label>
+                <label class="field"><span>Rótulo instalações</span><select class="select" data-dxf-color="txtInst"></select></label>
+                <label class="field"><span>Rótulo BT</span><select class="select" data-dxf-color="txtBt"></select></label>
+                <label class="field"><span>Rótulo MT</span><select class="select" data-dxf-color="txtMt"></select></label>
+                <label class="field"><span>Arruamento</span><select class="select" data-dxf-color="arruamento"></select></label>
+                <label class="field"><span>Rótulo ruas</span><select class="select" data-dxf-color="txtRuas"></select></label>
+                <label class="field"><span>KML pontos</span><select class="select" data-dxf-color="kmlPoint"></select></label>
+                <label class="field"><span>KML linhas</span><select class="select" data-dxf-color="kmlLine"></select></label>
+                <label class="field"><span>KML áreas</span><select class="select" data-dxf-color="kmlArea"></select></label>
+                <label class="field"><span>KML rótulos</span><select class="select" data-dxf-color="kmlText"></select></label>
+              </div>
+              <p class="field-hint">As formas e camadas usam estas cores. Blocos importados seguem a seção “Posição e cor dos blocos”.</p>
+            </section>
+
+            <section class="dxf-settings-section dxf-settings-wide">
+              <h3>Modelos de texto</h3>
+              <p class="field-hint">
+                Para montar rótulos sem digitar, feche esta janela e use <strong>Rótulos</strong> no mapa.
+                Aqui ficam os modelos avançados com <code>{COLUNA}</code> e os atalhos
+                <code>{ASSINATURA}</code>, <code>{CONDUTORES}</code>, <code>{COMPRIMENTO}</code> e <code>{NOME}</code>.
+              </p>
+              <div class="dxf-label-grid">
+                <label class="field"><span>Poste</span><textarea class="input" id="dxfLabelPoste" rows="3"></textarea></label>
+                <label class="field"><span>Instalação</span><textarea class="input" id="dxfLabelInst" rows="3"></textarea></label>
+                <label class="field"><span>Rede BT</span><textarea class="input" id="dxfLabelBt" rows="3"></textarea></label>
+                <label class="field"><span>Rede MT</span><textarea class="input" id="dxfLabelMt" rows="3"></textarea></label>
+                <label class="field"><span>Arruamento</span><textarea class="input" id="dxfLabelRua" rows="2"></textarea></label>
+              </div>
+            </section>
+          </div>
+        </details>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info">As preferências ficam salvas neste computador.</span>
+        <div class="modal-actions">
+          <input type="file" id="dxfSettingsImportFile" accept=".json,application/json" hidden>
+          <button class="btn btn-ghost" type="button" id="dxfSettingsImport">Importar…</button>
+          <button class="btn btn-ghost" type="button" id="dxfSettingsExport">Exportar…</button>
+          <button class="btn btn-ghost" type="button" id="dxfSettingsReset">Restaurar padrão</button>
+          <button class="btn btn-primary" type="button" id="dxfSettingsSave">Salvar desenho</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal modal-lg" id="labelsDialog">
+    <form method="dialog" class="modal-shell" id="labelsForm">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-tag"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Rótulos e anotações</h2>
+          <p>Escolha os campos exibidos no mapa e no DXF, por camada</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body labels-body">
+        <div class="labels-toolbar">
+          <label class="inline-switch">
+            <input type="checkbox" id="labelsEnabled" class="switch" checked>
+            <span>Mostrar rótulos no mapa</span>
+          </label>
+          <label class="labels-zoom-field">
+            <span>Exibir a partir de</span>
+            <select class="select select-sm" id="labelsZoom">
+              <option value="15">Zoom 15</option>
+              <option value="16">Zoom 16</option>
+              <option value="18">Zoom 18</option>
+              <option value="19">Zoom 19</option>
+            </select>
+          </label>
+        </div>
+        <div class="segmented labels-tabs" id="labelTabs" role="tablist"></div>
+        <div id="labelPanes"></div>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info">Os rótulos valem para o mapa e para a exportação DXF.</span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" type="button" id="labelsReset">Restaurar campos</button>
+          <button class="btn btn-primary" type="button" id="labelsSave">Salvar rótulos</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal modal-lg" id="dbBuildDialog">
+    <form method="dialog" class="modal-shell" id="dbBuildForm">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-database"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Gerar base SQLite</h2>
+          <p>Converte a pasta de CSVs da extração mensal em banco com índice espacial</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <div class="db-build-grid">
+          <label class="field">
+            <span>Pasta com os CSVs</span>
+            <div class="db-build-picker">
+              <input class="input" id="dbBuildSource" readonly placeholder="Selecione a pasta da extração…">
+              <button class="btn btn-ghost btn-sm" type="button" id="dbBuildPickSource">Procurar…</button>
+            </div>
+          </label>
+          <label class="field">
+            <span>Arquivo de saída (.sqlite)</span>
+            <div class="db-build-picker">
+              <input class="input" id="dbBuildOutput" readonly placeholder="Onde salvar o banco…">
+              <button class="btn btn-ghost btn-sm" type="button" id="dbBuildPickOutput">Salvar como…</button>
+            </div>
+          </label>
+        </div>
+        <p class="field-hint">Detecção automática por arquivo: encoding, delimitador, camada e colunas novas. Linhas malformadas vão para quarentena; o manifesto registra tudo e compara com o mês anterior quando disponível.</p>
+        <div class="db-build-progress" id="dbBuildProgress" hidden>
+          <div class="db-build-bar"><span id="dbBuildBarFill"></span></div>
+          <div class="db-build-status" id="dbBuildStatus">Preparando…</div>
+        </div>
+        <div class="db-build-log" id="dbBuildLog" hidden></div>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info" id="dbBuildFoot">A conversão leva alguns minutos e roda em segundo plano.</span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" type="button" id="dbBuildCancel" hidden>Cancelar</button>
+          <button class="btn btn-primary" type="button" id="dbBuildStart">Gerar banco</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="drop-overlay" id="dropOverlay" hidden>
+    <div class="drop-overlay-card">
+      <div class="drop-pulse"><svg class="icon"><use href="#i-upload"/></svg></div>
+      <h2>Solte os arquivos para importar</h2>
+      <p>CSVs · ou um projeto .neogrid</p>
+    </div>
+  </div>
+
+  <!-- ── Toasts ───────────────────────────────────────────────────── -->
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
+
+  <!-- ── Print root ──────────────────────────────────────────────── -->
+  <div class="print-root" id="printRoot" aria-hidden="true">
+    <div class="print-sheet" id="printSheetRoot">
+      <div class="print-map-slot" id="printMapSlot"></div>
+      <header class="print-header">
+        <div class="print-brand"><span class="print-logo"><svg><use href="#i-bolt"/></svg></span><div><strong>NeoGrid</strong><span>Neoenergia PE</span></div></div>
+        <div class="print-title"><h2 id="printTitle">Mapa de redes e ativos</h2><p id="printContext">—</p></div>
+        <div class="print-sheet-label"><span id="printSheetLabel">A3</span><small>prancha técnica</small></div>
+      </header>
+      <footer class="print-footer">
+        <div class="print-footer-left"><span id="printMeta">Escala 1:1.000</span><span>·</span><span id="printDate">—</span></div>
+        <div class="print-legend" id="printLegendFooter"></div>
+        <div class="print-footer-right"><span>NeoGrid · dados locais</span><span class="print-north">N <b>▲</b></span></div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ── Loading splash ──────────────────────────────────────────── -->
+  <div class="splash" id="splash">
+    <div class="splash-logo"><svg><use href="#i-bolt"/></svg></div>
+    <div class="splash-name">NeoGrid</div>
+    <div class="splash-bar"><span></span></div>
+    <span class="splash-caption">Preparando o ambiente local…</span>
+  </div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
+
+
+
+
+

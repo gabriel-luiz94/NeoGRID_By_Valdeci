@@ -1,0 +1,19 @@
+[package]
+name = "neogrid-build"
+version = "0.1.0"
+edition = "2021"
+description = "Conversor CSV -> SQLite do NeoGrid (paridade com electron/db-build.js)"
+
+[[bin]]
+name = "neogrid-build"
+path = "src/main.rs"
+
+[dependencies]
+neogrid-core = { path = "../neogrid-core" }
+csv = "1"
+encoding_rs = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+flate2 = "1"
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
