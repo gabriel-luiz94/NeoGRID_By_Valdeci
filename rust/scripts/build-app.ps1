@@ -8,8 +8,8 @@
        `windres` e tenta de novo
     3. opcional: `cargo tauri build --bundles <nsis|msi>` (instalador)
 
-  Requisitos: w64devkit em C:\Users\ORION\w64devkit (ou -W64Devkit <path>),
-  NSIS em C:\Users\ORION\nsis\nsis-3.11 para o instalador.
+  Requisitos: Rust (alvo GNU), w64devkit e NSIS. Os caminhos são resolvidos por
+  `env.ps1` (variáveis NEOGRID_* ou %LOCALAPPDATA%\neogrid-tools).
   Com MSVC Build Tools instalado, o passo 2 nunca dispara.
 
   Exemplos:
@@ -21,15 +21,13 @@ param(
   [ValidateSet('none', 'nsis', 'msi')]
   [string]$Bundle = 'nsis',
   [string]$Target = 'x86_64-pc-windows-gnu',
-  [string]$W64Devkit = 'C:\Users\ORION\w64devkit\w64devkit\bin',
-  [string]$Nsis = 'C:\Users\ORION\nsis\nsis-3.11',
   [switch]$Install
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'env.ps1')
 $root = Split-Path $PSScriptRoot           # rust/
 $app = Join-Path $root 'neogrid-app'
-$env:PATH = "$W64Devkit;$Nsis;$env:PATH"
 
 # Executa um comando nativo capturando stdout+stderr em log, sem deixar o
 # stderr do cargo virar exceção do PowerShell.
@@ -84,8 +82,19 @@ try {
   Write-Host "OK exe: $exe ($size)" -ForegroundColor Green
 
   if ($Bundle -ne 'none') {
-    if ((Build-WithResFix -CargoArgs "tauri build --target $Target --bundles $Bundle" -Profile release) -ne 0) {
-      throw "empacotamento ($Bundle) falhou"
+    # A CLI do Tauri vem do npm (`npm install` na raiz); recompila só o que mudou e empacota.
+    $repo = Split-Path $root
+    $tauriCli = Join-Path $repo 'node_modules\.bin\tauri.cmd'
+    if (-not (Test-Path $tauriCli)) { throw "CLI do Tauri ausente: rode 'npm install' na raiz do projeto" }
+    $log = Join-Path $env:TEMP ("neogrid-bundle-" + [guid]::NewGuid().ToString('N') + ".log")
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & cmd /c "`"$tauriCli`" build --target $Target --bundles $Bundle 2>&1" | Out-File -FilePath $log -Encoding utf8
+    $bundleCode = $LASTEXITCODE
+    $ErrorActionPreference = $previous
+    if ($bundleCode -ne 0) {
+      Get-Content $log | Select-Object -Last 25
+      throw "empacotamento ($Bundle) falhou (log: $log)"
     }
     $bundleDir = Join-Path $root "target\$Target\release\bundle\$Bundle"
     Get-ChildItem $bundleDir -Filter *.exe -ErrorAction SilentlyContinue | ForEach-Object {

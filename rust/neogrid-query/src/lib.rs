@@ -5,11 +5,13 @@
 //! Sem cache de statements (prepare por chamada, ~µs — irrelevante perto do
 //! IO); `Connection` e `Send`, para o shell expor via `Mutex<Manager>`.
 
-use rusqlite::{types::Value, Connection, OpenFlags};
+use rusqlite::{functions::FunctionFlags, types::Value, Connection, OpenFlags};
 use serde::Serialize;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Pacote de linha, mesma forma do `toRow` do JS: `{i, row, geom, b}`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -33,6 +35,9 @@ pub struct Manager {
     layers: HashMap<String, LayerInfo>,
     /// `info` no formato do `db:info` (o schema + path/size/mtime).
     info_json: serde_json::Value,
+    /// Regionais selecionadas; vazio = todas. Filtra mapa e coleta por área.
+    regions: RefCell<Vec<String>>,
+    path: PathBuf,
 }
 
 fn sql_value_f64(v: &Value) -> Option<f64> {
@@ -132,7 +137,7 @@ impl Manager {
         }
         schema["path"] = serde_json::Value::String(path.to_string_lossy().to_string());
         schema["size"] = serde_json::json!(meta.len());
-        Ok(Self { conn: conn, layers, info_json: schema })
+        Ok(Self { conn, layers, info_json: schema, regions: RefCell::new(Vec::new()), path: path.to_path_buf() })
     }
 
     pub fn info(&self) -> &serde_json::Value {
@@ -259,8 +264,9 @@ impl Manager {
         let sql = format!(
             "SELECT p.\"_rid\", p.\"_geom\", p.\"_min_lon\", p.\"_max_lon\", p.\"_min_lat\", p.\"_max_lat\"{cols_prefixed}
              FROM \"rtree_{layer_type}\" r JOIN \"{layer_type}\" p ON p.\"_rid\" = r.\"id\"
-             WHERE r.\"max_lon\" >= ? AND r.\"min_lon\" <= ? AND r.\"max_lat\" >= ? AND r.\"min_lat\" <= ?
-             LIMIT ?"
+             WHERE r.\"max_lon\" >= ? AND r.\"min_lon\" <= ? AND r.\"max_lat\" >= ? AND r.\"min_lat\" <= ?{region}
+             LIMIT ?",
+            region = self.active_region_clause(layer_type)
         );
         self.query_rows(layer_type, &sql, &[&west, &east, &south, &north, &safe])
     }
@@ -342,9 +348,15 @@ impl Manager {
         limit: i64,
     ) -> Result<Vec<i64>, String> {
         let safe = limit.clamp(1, 1000000);
+        let region = self.active_region_clause(layer_type);
+        let join = if region.is_empty() {
+            String::new()
+        } else {
+            format!(" JOIN \"{layer_type}\" p ON p.\"_rid\" = r.\"id\"")
+        };
         let sql = format!(
-            "SELECT r.\"id\" FROM \"rtree_{layer_type}\" r
-             WHERE r.\"max_lon\" >= ? AND r.\"min_lon\" <= ? AND r.\"max_lat\" >= ? AND r.\"min_lat\" <= ?
+            "SELECT r.\"id\" FROM \"rtree_{layer_type}\" r{join}
+             WHERE r.\"max_lon\" >= ? AND r.\"min_lon\" <= ? AND r.\"max_lat\" >= ? AND r.\"min_lat\" <= ?{region}
              LIMIT ?"
         );
         Ok(self
@@ -483,6 +495,128 @@ impl Manager {
         Ok(serde_json::json!({"inst": inst, "nets": nets}))
     }
 
+    // ---- regionais ----
+
+    /// Regionais existentes na base (coluna `REGIONAL`), em ordem alfabética.
+    pub fn regions(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for layer in self.layers.values() {
+            if let Some(idx) = layer.headers.iter().position(|h| h == REGIONAL_HEADER) {
+                if let Some(values) = layer.dicts.get(&idx) {
+                    out.extend(values.iter().cloned());
+                }
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    pub fn set_regions(&self, regions: Vec<String>) {
+        *self.regions.borrow_mut() = regions;
+    }
+
+    pub fn selected_regions(&self) -> Vec<String> {
+        self.regions.borrow().clone()
+    }
+
+    /// Trecho SQL (`AND p."REGIONAL" IN (...)`) para as regionais informadas.
+    /// Uma regional inexistente na camada não casa nada, em vez de liberar tudo.
+    fn region_clause(&self, layer_type: &str, regions: &[String]) -> String {
+        if regions.is_empty() {
+            return String::new();
+        }
+        let Some(layer) = self.layers.get(layer_type) else {
+            return String::new();
+        };
+        let Some(idx) = layer.headers.iter().position(|h| h == REGIONAL_HEADER) else {
+            return String::new();
+        };
+        let values: Vec<String> = match layer.dicts.get(&idx) {
+            Some(dict) => regions
+                .iter()
+                .filter_map(|r| dict.iter().position(|v| v == r))
+                .map(|code| code.to_string())
+                .collect(),
+            None => regions.iter().map(|r| format!("'{}'", r.replace('\'', "''"))).collect(),
+        };
+        if values.is_empty() {
+            return " AND 0".to_string();
+        }
+        format!(" AND p.\"{REGIONAL_HEADER}\" IN ({})", values.join(","))
+    }
+
+    fn active_region_clause(&self, layer_type: &str) -> String {
+        self.region_clause(layer_type, &self.regions.borrow())
+    }
+
+    // ---- leitura em lote para o módulo Projeto ----
+
+    /// Linhas completas de uma área em formato compacto: `{h, rows, n, corte}`.
+    /// A geometria descompactada volta na coluna `GEOMETRIA_WKT`.
+    /// `regions = None` usa o filtro ativo do mapa.
+    #[allow(clippy::too_many_arguments)]
+    pub fn area(
+        &self,
+        layer_type: &str,
+        west: f64,
+        east: f64,
+        south: f64,
+        north: f64,
+        limit: i64,
+        regions: Option<&[String]>,
+    ) -> Result<serde_json::Value, String> {
+        let layer = self.layer(layer_type)?;
+        let mut headers = layer.headers.clone();
+        let wkt = match headers.iter().position(|h| h == WKT_HEADER) {
+            Some(i) => i,
+            None => {
+                headers.push(WKT_HEADER.to_string());
+                headers.len() - 1
+            }
+        };
+        let columns = self.select_columns(layer_type)?.replace(", \"", ", p.\"");
+        let safe = limit.clamp(1, 6_000_000);
+        let fetch = safe + 1;
+        let region = match regions {
+            Some(list) => self.region_clause(layer_type, list),
+            None => self.active_region_clause(layer_type),
+        };
+        let sql = format!(
+            "SELECT p.\"_rid\", p.\"_geom\", p.\"_min_lon\", p.\"_max_lon\", p.\"_min_lat\", p.\"_max_lat\"{columns}
+             FROM \"rtree_{layer_type}\" r JOIN \"{layer_type}\" p ON p.\"_rid\" = r.\"id\"
+             WHERE r.\"max_lon\" >= ? AND r.\"min_lon\" <= ? AND r.\"max_lat\" >= ? AND r.\"min_lat\" <= ?{region}
+             LIMIT ?"
+        );
+        let mut packets = self.query_rows(layer_type, &sql, &[&west, &east, &south, &north, &fetch])?;
+        let corte = packets.len() as i64 > safe;
+        packets.truncate(safe as usize);
+        let n = packets.len();
+        let rows: Vec<Vec<String>> = packets
+            .into_iter()
+            .map(|packet| {
+                let mut row = packet.row;
+                row.resize(headers.len(), String::new());
+                if !packet.geom.is_empty() {
+                    row[wkt] = packet.geom;
+                }
+                row
+            })
+            .collect();
+        Ok(serde_json::json!({"h": headers, "rows": rows, "n": n, "corte": corte}))
+    }
+
+    /// Contexto para consultas SQL fora do lock do banco principal.
+    pub fn sql_context(&self) -> SqlContext {
+        let mut layers: Vec<(String, Vec<String>, HashMap<usize, Vec<String>>)> = self
+            .layers
+            .iter()
+            .map(|(name, l)| (name.clone(), l.headers.clone(), l.dicts.clone()))
+            .collect();
+        layers.sort_by(|a, b| a.0.cmp(&b.0));
+        SqlContext { path: self.path.clone(), layers: Arc::new(layers) }
+    }
+
     pub fn page(
         &self,
         layer_type: &str,
@@ -531,6 +665,192 @@ impl Manager {
             "limit": limit_safe,
             "rows": rows,
         }))
+    }
+}
+
+const REGIONAL_HEADER: &str = "REGIONAL";
+const WKT_HEADER: &str = "GEOMETRIA_WKT";
+const SQL_TIMEOUT_SECS: u64 = 60;
+
+/// Consulta SQL do usuário: conexão própria, somente leitura, com visões
+/// `v_<camada>` que já devolvem os valores dos dicionários e o WKT.
+#[derive(Clone)]
+pub struct SqlContext {
+    path: PathBuf,
+    layers: Arc<Vec<(String, Vec<String>, HashMap<usize, Vec<String>>)>>,
+}
+
+/// Há `;` fora de texto, identificador entre aspas ou comentário?
+fn has_statement_separator(sql: &str) -> bool {
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            quote @ (b'\'' | b'"' | b'`') => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != quote {
+                    i += 1;
+                }
+            }
+            b'[' => {
+                while i < bytes.len() && bytes[i] != b']' {
+                    i += 1;
+                }
+            }
+            b'-' if bytes.get(i + 1) == Some(&b'-') => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                i += 2;
+                while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                    i += 1;
+                }
+                i += 1;
+            }
+            b';' => return true,
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_statement_separator;
+
+    #[test]
+    fn separador_so_conta_fora_de_texto_e_comentario() {
+        assert!(has_statement_separator("select 1; drop table poste"));
+        assert!(!has_statement_separator("select ';' from poste"));
+        assert!(!has_statement_separator("select \"a;b\" from poste -- fim;\n"));
+        assert!(!has_statement_separator("select 1 /* ; */ + 2"));
+        assert!(!has_statement_separator("select [a;b] from poste"));
+    }
+}
+
+fn inflate_geom(value: &Value) -> Option<String> {
+    match value {
+        Value::Text(s) => Some(s.clone()),
+        Value::Blob(b) => {
+            let mut dec = flate2::read::ZlibDecoder::new(&b[..]);
+            let mut s = String::new();
+            dec.read_to_string(&mut s).ok().map(|_| s)
+        }
+        _ => None,
+    }
+}
+
+impl SqlContext {
+    fn open(&self) -> Result<Connection, String> {
+        let conn = Connection::open_with_flags(&self.path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| format!("abrir banco: {e}"))?;
+        conn.execute_batch("PRAGMA temp_store = MEMORY; PRAGMA cache_size = -65536;")
+            .map_err(|e| e.to_string())?;
+        let layers = self.layers.clone();
+        conn.create_scalar_function(
+            "ng_dict",
+            3,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+            move |ctx| {
+                let layer: usize = ctx.get(0)?;
+                let column: usize = ctx.get(1)?;
+                Ok(match ctx.get_raw(2).as_i64() {
+                    Ok(code) => layers
+                        .get(layer)
+                        .and_then(|l| l.2.get(&column))
+                        .and_then(|dict| dict.get(code as usize))
+                        .cloned(),
+                    Err(_) => ctx.get_raw(2).as_str().ok().map(str::to_string),
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        conn.create_scalar_function(
+            "ng_wkt",
+            1,
+            FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+            |ctx| Ok(inflate_geom(&ctx.get::<Value>(0)?)),
+        )
+        .map_err(|e| e.to_string())?;
+        for (l, (name, headers, dicts)) in self.layers.iter().enumerate() {
+            let columns: Vec<String> = headers
+                .iter()
+                .enumerate()
+                .map(|(c, h)| {
+                    let q = quote_ident(h);
+                    if h == WKT_HEADER {
+                        format!("ng_wkt(\"_geom\") AS {q}")
+                    } else if dicts.contains_key(&c) {
+                        format!("ng_dict({l}, {c}, {q}) AS {q}")
+                    } else {
+                        q
+                    }
+                })
+                .collect();
+            conn.execute_batch(&format!(
+                "CREATE TEMP VIEW \"v_{name}\" AS SELECT \"_rid\" AS \"ID_INTERNO\", {} FROM main.\"{name}\";",
+                columns.join(", ")
+            ))
+            .map_err(|e| e.to_string())?;
+        }
+        conn.execute_batch("PRAGMA query_only = ON;").map_err(|e| e.to_string())?;
+        Ok(conn)
+    }
+
+    /// Executa um único SELECT. Retorna `{cols, rows, corte}`.
+    pub fn run(&self, query: &str, max: usize) -> Result<serde_json::Value, String> {
+        let text = query.trim().trim_end_matches(|c: char| c == ';' || c.is_whitespace());
+        let low = text.to_lowercase();
+        let allowed = ["select", "with", "explain", "pragma table_info"];
+        if !allowed.iter().any(|p| low.starts_with(p)) {
+            return Err("Apenas consultas SELECT são permitidas.".to_string());
+        }
+        if has_statement_separator(text) {
+            return Err("Envie uma consulta por vez.".to_string());
+        }
+        let conn = self.open()?;
+        let started = std::time::Instant::now();
+        conn.progress_handler(
+            20_000,
+            Some(move || started.elapsed().as_secs() >= SQL_TIMEOUT_SECS),
+        );
+        let mut stmt = conn.prepare(text).map_err(|e| e.to_string())?;
+        if !stmt.readonly() {
+            return Err("Apenas consultas somente leitura são permitidas.".to_string());
+        }
+        let cols: Vec<String> = stmt.column_names().iter().map(|c| c.to_string()).collect();
+        let ncol = cols.len();
+        let limit = max.clamp(1, 20_000);
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut out: Vec<Vec<serde_json::Value>> = Vec::new();
+        let mut corte = false;
+        while let Some(row) = rows.next().map_err(|e| {
+            if started.elapsed().as_secs() >= SQL_TIMEOUT_SECS {
+                format!("Consulta interrompida: passou de {SQL_TIMEOUT_SECS} segundos.")
+            } else {
+                e.to_string()
+            }
+        })? {
+            if out.len() >= limit {
+                corte = true;
+                break;
+            }
+            let mut values = Vec::with_capacity(ncol);
+            for i in 0..ncol {
+                values.push(match row.get::<_, Value>(i).map_err(|e| e.to_string())? {
+                    Value::Null => serde_json::Value::Null,
+                    Value::Integer(v) => serde_json::json!(v),
+                    Value::Real(v) => serde_json::json!(v),
+                    Value::Text(v) => serde_json::json!(v),
+                    Value::Blob(v) => serde_json::json!(format!("(binário, {} bytes)", v.len())),
+                });
+            }
+            out.push(values);
+        }
+        Ok(serde_json::json!({"cols": cols, "rows": out, "corte": corte}))
     }
 }
 

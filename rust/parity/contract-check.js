@@ -34,6 +34,21 @@ const EXPECTED = {
   db_build_start: ['payload'],
   db_build_cancel: [],
   db_build_busy: [],
+  db_pick_zip: [],
+  db_area: ['payload'],
+  db_sql: ['query', 'max'],
+  ws_get: ['key'],
+  ws_put: ['key', 'value'],
+  ws_delete_prefix: ['prefix'],
+  ws_stats: ['prefix'],
+  pack_pick: ['mode', 'suggestedName'],
+  pack_write: ['path', 'mode', 'files'],
+  ruas_pack_status: [],
+  ruas_pack_tile: ['key'],
+  ruas_pack_import: [],
+  ruas_pack_export: [],
+  ruas_pack_download: [],
+  ruas_pack_cancel: [],
 };
 
 let fails = 0;

@@ -105,6 +105,26 @@ import { listen } from '../../vendor/tauri/event.js';
           }).catch(() => {});
         };
       },
+      dbPickZip: () => invoke('db_pick_zip'),
+      dbArea: (payload) => invoke('db_area', { payload: payload || {} }),
+      dbSql: (query, max) => invoke('db_sql', { query, max: max || null }),
+      wsGet: (key) => invoke('ws_get', { key: key }),
+      wsPut: (key, value) => invoke('ws_put', { key: key, value: value }),
+      wsDeletePrefix: (prefix) => invoke('ws_delete_prefix', { prefix: prefix }),
+      wsStats: (prefix) => invoke('ws_stats', { prefix: prefix }),
+      packPick: (mode, suggestedName) => invoke('pack_pick', { mode: mode, suggestedName: suggestedName || null }),
+      packWrite: (path, mode, files) => invoke('pack_write', { path: path, mode: mode, files: files }),
+      ruasPackStatus: () => invoke('ruas_pack_status'),
+      ruasPackTile: (key) => invoke('ruas_pack_tile', { key: key }),
+      ruasPackImport: () => invoke('ruas_pack_import'),
+      ruasPackExport: () => invoke('ruas_pack_export'),
+      ruasPackDownload: () => invoke('ruas_pack_download'),
+      ruasPackCancel: () => invoke('ruas_pack_cancel'),
+      onRuasPackProgress: (listener) => {
+        listen('ruas:progress', (event) => {
+          try { listener(event.payload); } catch { /* listener do app */ }
+        });
+      },
       getPathForFile: () => '',
     };
   } catch {

@@ -57,6 +57,13 @@ impl PhaseA {
         }
     }
 
+    /// Valor que não vem de uma coluna do CSV (ex.: regional da pasta do arquivo).
+    pub fn seed(&mut self, column: usize, value: &str) {
+        if let Some(Some(set)) = self.distinct.get_mut(column) {
+            set.insert(value.to_string());
+        }
+    }
+
     pub fn finish(self) -> DictColumns {        let mut out = DictColumns::new();
         for (c, set) in self.distinct.into_iter().enumerate() {
             if let Some(set) = set {

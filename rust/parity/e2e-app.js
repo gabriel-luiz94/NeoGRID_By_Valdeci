@@ -172,23 +172,21 @@ async function main() {
   check('busy0', (await evaluate(`return ${D}.dbBuildBusy()`)).busy === false);
 
   // ---- fluxos de exportação na UI real (sem diálogo nativo) ----
-  // DXF: mesmo caminho do botão (coleta por área + generateDxf).
+  // DXF: mesmo gerador do módulo Projeto, sem arruamento.
   const dxf = await evaluate(`
     if (!window.__neo.library.get('poste')) { await window.__neo.openDatabase(${JSON.stringify(DB)}); }
-    const mod = await import('/js/modules/dxf/dxf-export.js');
+    for (let i = 0; i < 100 && typeof window.ngMapa === 'undefined'; i++) await new Promise((r) => setTimeout(r, 100));
     const b = window.__neo.mapView.map.getBounds();
-    const bounds = { west: b.getWest(), east: b.getEast(), south: b.getSouth(), north: b.getNorth() };
-    const visible = { poste: true, inst: true, bt: true, mt: true };
-    const collected = await mod.collectForExportAsync(bounds, visible, 20000);
-    const total = mod.countCollected(collected).total;
-    const r = mod.generateDxf(bounds, 1000, [], visible, { collected });
+    await selFim(b, null);
+    const total = Object.values(SEL.ids).reduce((a, v) => a + v.length, 0);
+    const r = usarSel(() => gerarDXF(SEL, null, null));
+    limparPoligono();
     return {
       total,
-      sections: (r.content.match(/\\bSECTION\\b/g) || []).length,
-      hasPostes: r.content.includes('POSTES'),
-      eof: r.content.trimEnd().endsWith('EOF'),
-      bytes: r.content.length,
-      zone: r.zone,
+      sections: (r.txt.match(/\\bSECTION\\b/g) || []).length,
+      hasPostes: r.txt.includes('POSTES'),
+      eof: r.txt.trimEnd().endsWith('EOF'),
+      bytes: r.txt.length,
     };
   `);
   check('dxf', dxf && dxf.total > 0 && dxf.hasPostes && dxf.eof && dxf.sections >= 3 && dxf.bytes > 1000);

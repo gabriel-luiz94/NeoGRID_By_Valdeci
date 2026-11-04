@@ -57,6 +57,9 @@ export class MapRenderer {
     this.accent = cssVar('--accent', '#f5a524');
     this.dxfVersion = -1;
     this.dxfSettings = null;
+    this.estiloCache = new Map();
+    this.largurasEstilo = new Map();
+    this.mapaVersao = 0;
     this.dxfBlocks = new Map();
     this.dxfLibraryText = '';
 
@@ -114,8 +117,40 @@ export class MapRenderer {
     if (this.cacheRevision === library.revision) return;
     this.cacheRevision = library.revision;
     this.labelCache.clear();
+    this.estiloCache.clear();
     this.blockCache.poste.clear();
     this.blockCache.inst.clear();
+  }
+
+  /** Configuração do Projeto aplicada ao mapa (disponível assim que o motor carrega). */
+  syncMapa() {
+    const versao = window.ngMapa?.versao() ?? 0;
+    if (versao === this.mapaVersao) return;
+    this.mapaVersao = versao;
+    this.labelCache.clear();
+    this.estiloCache.clear();
+  }
+
+  estiloDe(type, store, index) {
+    const key = `${type}:${index}`;
+    let estilo = this.estiloCache.get(key);
+    if (!estilo) {
+      if (this.estiloCache.size > 80000) this.estiloCache.clear();
+      estilo = window.ngMapa.estilo(type, store, index);
+      this.estiloCache.set(key, estilo);
+    }
+    return estilo;
+  }
+
+  corRotulo(lines, fallback) {
+    return lines.cor || fallback;
+  }
+
+  blocoProjeto(estilo, rotation, zoom) {
+    if (!estilo.bl) return false;
+    const metrosPorPixel = 156543.03392 * Math.cos(this.map.getCenter().lat * RAD) / 2 ** zoom;
+    window.ngMapa.desenharBloco(this.context, estilo, estilo.bl, this.pixelX, this.pixelY, estilo.girar ? -rotation : 0, estilo.tam || 14, metrosPorPixel);
+    return true;
   }
 
   blockNameFor(kind, store, index) {
@@ -133,13 +168,13 @@ export class MapRenderer {
     const cached = this.labelCache.get(key);
     if (cached) return cached;
     const row = store.rows[index];
-    const context = templateContext(store, row, type, this.dxfSettings);
-    if (type === 'inst') {
+    const context = window.ngMapa ? null : templateContext(store, row, type, this.dxfSettings);
+    if (context && type === 'inst') {
       const info = installationInfo(store, index);
       context.TIPO_INSTA = context.TIPO_INSTA || info.name;
       context.DE_PLACA = context.DE_PLACA || info.plate;
     }
-    const lines = renderLabel(this.dxfSettings.labels?.[type], context, {
+    const lines = window.ngMapa ? window.ngMapa.rotulo(type, store, index) : renderLabel(this.dxfSettings.labels?.[type], context, {
       settings: this.dxfSettings,
       type,
     });
@@ -268,12 +303,52 @@ export class MapRenderer {
     }
   }
 
+  /** Largura do texto em uma fonte da aba Estilos, com memória: medir a cada quadro custa caro. */
+  larguraEstilo(fonte, texto) {
+    const chave = `${fonte}|${texto}`;
+    let largura = this.largurasEstilo.get(chave);
+    if (largura === undefined) {
+      if (this.largurasEstilo.size > 40000) this.largurasEstilo.clear();
+      largura = this.context.measureText(texto).width;
+      this.largurasEstilo.set(chave, largura);
+    }
+    return largura;
+  }
+
+  /** Posição do rótulo de ponto conforme a aba Estilos. */
+  posRotulo(est, x, y, padraoX, padraoModo) {
+    if (!est) return { x: x + padraoX, y, modo: padraoModo };
+    const d = (est.dist ?? 10);
+    const dx = est.dx || 0;
+    const dy = est.dy || 0;
+    const diagonal = d * 0.7;
+    switch (est.pos) {
+      case 'esq': return { x: x - d + dx, y: y + dy, modo: 'left' };
+      case 'cima': return { x: x + dx, y: y - d + dy, modo: 'center' };
+      case 'baixo': return { x: x + dx, y: y + d + dy, modo: 'center' };
+      case 'centro': return { x: x + dx, y: y + dy, modo: 'center' };
+      case 'ne': return { x: x + diagonal + dx, y: y - diagonal + dy, modo: 'right' };
+      case 'no': return { x: x - diagonal + dx, y: y - diagonal + dy, modo: 'left' };
+      case 'se': return { x: x + diagonal + dx, y: y + diagonal + dy, modo: 'right' };
+      case 'so': return { x: x - diagonal + dx, y: y + diagonal + dy, modo: 'left' };
+      default: return { x: x + d + dx, y: y + dy, modo: 'right' };
+    }
+  }
+
   label(lines, x, y, color, mode = 'right', angle = 0, maxLabels = Infinity) {
     this.labelAttempts += 1;
     if (this.labelCount >= maxLabels || this.labelAttempts > maxLabels * 5 || !lines.length) return;
-    let height = lines.length * LINE_HEIGHT + 2;
+    const est = lines.est || null;
+    const context = this.context;
+    const fonteBase = context.font;
+    const fonte = est ? `${est.ital ? 'italic ' : ''}${est.neg ? '700' : '400'} ${est.tam || 11}px "${est.fonte || 'Inter Variable'}", "Segoe UI", system-ui, sans-serif` : null;
+    if (fonte) context.font = fonte;
+    const alturaLinha = est ? Math.round((est.tam || 11) * Math.max(1, est.esp || 1.1)) : LINE_HEIGHT;
+    const folga = est && est.bal && est.bal !== 'nenhum' ? (est.pad ?? 1) + 3 : 0;
+    let height = lines.length * alturaLinha + 2 + folga * 2;
     let width = 2;
-    for (const line of lines) width = Math.max(width, this.width(line) + 2);
+    for (const line of lines) width = Math.max(width, (fonte ? this.larguraEstilo(fonte, line) : this.width(line)) + 2);
+    width += folga * 2;
 
     const boxes = [];
     if (mode === 'center') {
@@ -296,28 +371,50 @@ export class MapRenderer {
       boxes.push([x, y - height / 2, x + width, y + height / 2]);
     }
 
-    for (const box of boxes) {
-      if (!this.isFree(box[0], box[1], box[2], box[3])) return;
+    if (!est || est.colisao !== false) {
+      for (const box of boxes) {
+        if (!this.isFree(box[0], box[1], box[2], box[3])) {
+          context.font = fonteBase;
+          return;
+        }
+      }
+      for (const box of boxes) this.occupy(box[0], box[1], box[2], box[3]);
     }
-    for (const box of boxes) this.occupy(box[0], box[1], box[2], box[3]);
 
     this.labelCount += 1;
-    const context = this.context;
     context.save();
     context.translate(x, y);
     if (mode === 'center') context.rotate(angle);
     context.textAlign = mode === 'center' ? 'center' : mode === 'left' ? 'right' : 'left';
     context.textBaseline = 'middle';
-    context.lineWidth = 3;
+    if (folga) {
+      const x0 = mode === 'center' ? -width / 2 : mode === 'left' ? -width : 0;
+      context.beginPath();
+      if (est.bal === 'ret') context.rect(x0, -height / 2, width, height);
+      else context.roundRect(x0, -height / 2, width, height, 4);
+      context.globalAlpha = est.balOp ?? 0.9;
+      context.fillStyle = est.balFill || '#0f1a24';
+      context.fill();
+      context.globalAlpha = 1;
+      if (est.balBW > 0) {
+        context.strokeStyle = est.balBorda || '#ffffff';
+        context.lineWidth = est.balBW;
+        context.stroke();
+      }
+      if (mode !== 'center') context.translate(mode === 'left' ? -folga : folga, 0);
+    }
+    const contorno = !est || est.halo !== false;
+    context.lineWidth = est ? (est.haloW ?? 3) : 3;
     context.lineJoin = 'round';
-    context.strokeStyle = 'rgba(3, 8, 12, .92)';
+    context.strokeStyle = est ? (est.haloCor || '#03080c') : 'rgba(3, 8, 12, .92)';
     context.fillStyle = color;
     lines.forEach((line, index) => {
-      const offsetY = (index - (lines.length - 1) / 2) * LINE_HEIGHT;
-      context.strokeText(line, 0, offsetY);
+      const offsetY = (index - (lines.length - 1) / 2) * alturaLinha;
+      if (contorno) context.strokeText(line, 0, offsetY);
       context.fillText(line, 0, offsetY);
     });
     context.restore();
+    context.font = fonteBase;
   }
 
   visibleIndexes(capValue) {
@@ -436,6 +533,7 @@ export class MapRenderer {
 
     const settings = this.getSettings();
     if (!this.dxfSettings || this.dxfVersion !== dxfSettingsVersion()) this.readDxfSettings();
+    this.syncMapa();
     this.syncDataRevision();
     const dxf = this.dxfSettings;
     const zoom = this.map.getZoom();
@@ -594,23 +692,40 @@ export class MapRenderer {
       const list = visible[type];
       if (!list.length) continue;
       const store = library.get(type);
-      context.beginPath();
-      for (const index of list) {
-        for (const ring of store.getGeometry(index)) {
-          for (let pointIndex = 0; pointIndex < ring.length; pointIndex++) {
-            const point = ring[pointIndex];
-            if (!Number.isFinite(point[1]) || !Number.isFinite(point[0])) continue;
-            this.project(point[1], point[0]);
-            if (pointIndex) context.lineTo(this.pixelX, this.pixelY);
-            else context.moveTo(this.pixelX, this.pixelY);
+      const mapa = window.ngMapa;
+      // Um caminho por cor: com regras na camada, cada grupo sai com o próprio estilo.
+      const grupos = new Map();
+      if (mapa?.temRegras(type)) {
+        for (const index of list) {
+          const estilo = this.estiloDe(type, store, index);
+          const chave = `${estilo.cor}|${estilo.larg}`;
+          if (!grupos.has(chave)) grupos.set(chave, { estilo, indices: [] });
+          grupos.get(chave).indices.push(index);
+        }
+      } else {
+        grupos.set('base', { estilo: mapa ? mapa.estilo(type, store, list[0]) : null, indices: list });
+      }
+      for (const { estilo, indices } of grupos.values()) {
+        context.beginPath();
+        for (const index of indices) {
+          for (const ring of store.getGeometry(index)) {
+            for (let pointIndex = 0; pointIndex < ring.length; pointIndex++) {
+              const point = ring[pointIndex];
+              if (!Number.isFinite(point[1]) || !Number.isFinite(point[0])) continue;
+              this.project(point[1], point[0]);
+              if (pointIndex) context.lineTo(this.pixelX, this.pixelY);
+              else context.moveTo(this.pixelX, this.pixelY);
+            }
           }
         }
+        context.strokeStyle = estilo?.cor || aciHex(dxf.colors?.[type], type === 'mt' ? '#fb7185' : '#2dd4bf');
+        context.lineWidth = estilo?.larg
+          ? estilo.larg * (zoom >= 17 ? 1 : 0.7)
+          : (type === 'mt' ? (zoom >= 17 ? 5 : 3.5) : (zoom >= 17 ? 2.8 : 2));
+        context.lineJoin = 'round';
+        context.lineCap = 'round';
+        context.stroke();
       }
-      context.strokeStyle = aciHex(dxf.colors?.[type], type === 'mt' ? '#fb7185' : '#2dd4bf');
-      context.lineWidth = type === 'mt' ? (zoom >= 17 ? 5 : 3.5) : (zoom >= 17 ? 2.8 : 2);
-      context.lineJoin = 'round';
-      context.lineCap = 'round';
-      context.stroke();
     }
 
     // Postes
@@ -627,16 +742,22 @@ export class MapRenderer {
         this.project(lon, lat);
         const angle = store.angle >= 0 ? Number(String(store.rows[index][store.angle] ?? '').replace(',', '.')) || 0 : 0;
         const rotation = angle * RAD;
-        const blockName = this.blockNameFor('poste', store, index);
-        const block = blockName ? this.dxfBlocks.get(blockName.toUpperCase()) : null;
-        if (block && this.drawBlock(block, this.pixelX, this.pixelY, rotation, color, blockSize, dxf.blockAnchor?.poste || 'base')) continue;
-        context.fillStyle = color;
+        const estilo = window.ngMapa ? this.estiloDe('poste', store, index) : null;
+        if (estilo) {
+          if (this.blocoProjeto(estilo, rotation, zoom)) continue;
+        } else {
+          const blockName = this.blockNameFor('poste', store, index);
+          const block = blockName ? this.dxfBlocks.get(blockName.toUpperCase()) : null;
+          if (block && this.drawBlock(block, this.pixelX, this.pixelY, rotation, color, blockSize, dxf.blockAnchor?.poste || 'base')) continue;
+        }
+        const formaPoste = estilo ? estilo.forma : dxf.shapes?.poste;
+        context.fillStyle = estilo?.cor || color;
         context.strokeStyle = 'rgba(8, 20, 28, .85)';
         context.lineWidth = 1;
-        if (dxf.shapes?.poste === 'circle') {
+        if (formaPoste === 'circle') {
           context.beginPath();
           context.arc(this.pixelX, this.pixelY, Math.max(halfW, halfH), 0, Math.PI * 2);
-        } else if (dxf.shapes?.poste === 'triangle') {
+        } else if (formaPoste === 'triangle') {
           context.beginPath();
           context.moveTo(this.pixelX, this.pixelY - halfW * 1.2);
           context.lineTo(this.pixelX + halfW * 1.2, this.pixelY + halfH);
@@ -670,16 +791,22 @@ export class MapRenderer {
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
         this.project(lon, lat);
         const info = installationInfo(store, index);
-        const blockName = this.blockNameFor('inst', store, index);
-        const block = blockName ? this.dxfBlocks.get(blockName.toUpperCase()) : null;
-        if (block && this.drawBlock(block, this.pixelX, this.pixelY, info.angle, color, blockSize, dxf.blockAnchor?.inst || 'base')) continue;
-        const shape = dxf.shapes?.inst === 'auto' ? info.kind : dxf.shapes?.inst;
-        if (shape === 'rel' || shape === 'square') {
-          context.fillStyle = color;
+        const estilo = window.ngMapa ? this.estiloDe('inst', store, index) : null;
+        if (estilo) {
+          if (this.blocoProjeto(estilo, info.angle, zoom)) continue;
+        } else {
+          const blockName = this.blockNameFor('inst', store, index);
+          const block = blockName ? this.dxfBlocks.get(blockName.toUpperCase()) : null;
+          if (block && this.drawBlock(block, this.pixelX, this.pixelY, info.angle, color, blockSize, dxf.blockAnchor?.inst || 'base')) continue;
+        }
+        const shape = estilo ? estilo.forma : (dxf.shapes?.inst === 'auto' ? info.kind : dxf.shapes?.inst);
+        const corInst = estilo?.cor || color;
+        if (shape === 'rel' || shape === 'square' || shape === 'rectangle') {
+          context.fillStyle = corInst;
           context.fillRect(this.pixelX - 6.5, this.pixelY - 6.5, 13, 13);
           context.strokeRect(this.pixelX - 6.5, this.pixelY - 6.5, 13, 13);
         } else if (shape === 'trafo' || shape === 'triangle') {
-          context.fillStyle = color;
+          context.fillStyle = corInst;
           context.beginPath();
           context.moveTo(this.pixelX, this.pixelY - 8.5);
           context.lineTo(this.pixelX + 8.5, this.pixelY + 6.5);
@@ -694,7 +821,7 @@ export class MapRenderer {
           context.beginPath();
           context.moveTo(-9, 0);
           context.lineTo(9, 0);
-          context.strokeStyle = color;
+          context.strokeStyle = corInst;
           context.lineWidth = 4;
           context.lineCap = 'round';
           context.stroke();
@@ -702,7 +829,7 @@ export class MapRenderer {
           context.strokeStyle = 'rgba(8, 20, 28, .9)';
           context.lineWidth = 1.5;
         } else {
-          context.fillStyle = color;
+          context.fillStyle = corInst;
           context.beginPath();
           context.arc(this.pixelX, this.pixelY, 4.5, 0, Math.PI * 2);
           context.fill();
@@ -714,7 +841,8 @@ export class MapRenderer {
     this.drawSelection(this.accent);
 
     // Rótulos
-    const labelZoom = Math.max(15, Number(settings.labelZoom) || 17);
+    // A partir de qual zoom cada rótulo aparece é definido em Estilos.
+    const labelZoom = window.ngMapa ? 15 : Math.max(15, Number(settings.labelZoom) || 17);
     const maxLabels = Math.max(0, Math.floor(labelCap * this.labelFactor));
     if (settings.labels && zoom >= labelZoom) {
       if (visible.poste.length) {
@@ -725,10 +853,10 @@ export class MapRenderer {
           const lat = store.Y[index];
           if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
           this.project(lon, lat);
-          const all = this.labelsFor('poste', store, index);
-          const lines = all;
-          if (!lines.length) continue;
-          this.label(lines, this.pixelX + (zoom >= 17 ? 9 : 6), this.pixelY, aciHex(dxf.colors?.txtPoste, '#ffe08a'), 'right', 0, maxLabels);
+          const lines = this.labelsFor('poste', store, index);
+          if (!lines.length || (lines.est && zoom < lines.est.minZ)) continue;
+          const pos = this.posRotulo(lines.est, this.pixelX, this.pixelY, zoom >= 17 ? 9 : 6, 'right');
+          this.label(lines, pos.x, pos.y, this.corRotulo(lines, aciHex(dxf.colors?.txtPoste, '#ffe08a')), pos.modo, 0, maxLabels);
         }
       }
 
@@ -739,11 +867,11 @@ export class MapRenderer {
           const lon = store.X[index];
           const lat = store.Y[index];
           if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-          const all = this.labelsFor('inst', store, index);
-          const lines = all;
-          if (!lines.length) continue;
+          const lines = this.labelsFor('inst', store, index);
+          if (!lines.length || (lines.est && zoom < lines.est.minZ)) continue;
           this.project(lon, lat);
-          this.label(lines, this.pixelX - 11, this.pixelY - 2, aciHex(dxf.colors?.txtInst, '#f1f5f9'), 'left', 0, maxLabels);
+          const pos = lines.est ? this.posRotulo(lines.est, this.pixelX, this.pixelY) : { x: this.pixelX - 11, y: this.pixelY - 2, modo: 'left' };
+          this.label(lines, pos.x, pos.y, this.corRotulo(lines, aciHex(dxf.colors?.txtInst, '#f1f5f9')), pos.modo, 0, maxLabels);
         }
       }
 
@@ -772,21 +900,25 @@ export class MapRenderer {
           let angle = Math.atan2(dy, dx);
           if (angle > Math.PI / 2) angle -= Math.PI;
           else if (angle < -Math.PI / 2) angle += Math.PI;
-          const text = this.labelsFor(type, store, index).join(' · ');
-          if (!text) continue;
+          const linhas = this.labelsFor(type, store, index);
+          const text = linhas.join(' · ');
+          if (!text || (linhas.est && zoom < linhas.est.minZ)) continue;
           candidates.push({
             length,
             text,
             angle,
-            x: (startX + endX) / 2 + Math.sin(angle) * offset,
-            y: (startY + endY) / 2 - Math.cos(angle) * offset,
-            color: aciHex(dxf.colors?.[type === 'bt' ? 'txtBt' : 'txtMt'], type === 'bt' ? '#a7f3b8' : '#ffb4b4'),
+            est: linhas.est || null,
+            x: (startX + endX) / 2 + Math.sin(angle) * (linhas.est ? (linhas.est.lado === 'abaixo' ? -1 : 1) * (7 + (linhas.est.dist || 0)) : offset),
+            y: (startY + endY) / 2 - Math.cos(angle) * (linhas.est ? (linhas.est.lado === 'abaixo' ? -1 : 1) * (7 + (linhas.est.dist || 0)) : offset),
+            color: this.corRotulo(linhas, aciHex(dxf.colors?.[type === 'bt' ? 'txtBt' : 'txtMt'], type === 'bt' ? '#a7f3b8' : '#ffb4b4')),
           });
         }
       }
       candidates.sort((a, b) => b.length - a.length);
       for (const candidate of candidates) {
-        this.label([candidate.text], candidate.x, candidate.y, candidate.color, 'center', candidate.angle, maxLabels);
+        const texto = [candidate.text];
+        texto.est = candidate.est;
+        this.label(texto, candidate.x, candidate.y, candidate.color, 'center', candidate.est?.modo === 'horizontal' ? 0 : candidate.angle, maxLabels);
       }
     }
 

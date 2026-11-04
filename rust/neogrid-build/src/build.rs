@@ -184,13 +184,66 @@ fn to_number_opt(s: &str) -> Option<f64> {
     neogrid_core::number::to_number(s)
 }
 
+/// Pasta temporária apagada ao sair, inclusive em erro ou cancelamento.
+struct TempDir(PathBuf);
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Extrai os CSVs do ZIP ao lado do banco de saída (onde já precisa haver espaço).
+fn extract_zip(zip_path: &Path, output: &Path, opts: &Options, rep: &Reporter) -> Result<TempDir, BuildError> {
+    let parent = output.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent).map_err(|e| format!("mkdir saída: {e}"))?;
+    let dir = TempDir(parent.join(format!(".neogrid-zip-{}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&dir.0);
+    std::fs::create_dir_all(&dir.0).map_err(|e| format!("pasta temporária: {e}"))?;
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("abrir ZIP: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("ZIP inválido: {e}"))?;
+    let total: u64 = (0..archive.len())
+        .filter_map(|i| archive.by_index_raw(i).ok().map(|f| f.size()))
+        .sum();
+    let mut done: u64 = 0;
+    let mut extracted = 0usize;
+    for i in 0..archive.len() {
+        check_cancel(&opts.cancel)?;
+        let mut entry = archive.by_index(i).map_err(|e| format!("ZIP: {e}"))?;
+        // `enclosed_name` recusa caminhos que sairiam da pasta (zip slip).
+        let Some(rel_path) = entry.enclosed_name() else {
+            rep.log(format!("AVISO: entrada ignorada no ZIP: {}", entry.name()));
+            continue;
+        };
+        let is_csv = rel_path.extension().map(|e| e.eq_ignore_ascii_case("csv")).unwrap_or(false);
+        if entry.is_dir() || !is_csv {
+            continue;
+        }
+        let dest = dir.0.join(&rel_path);
+        if let Some(p) = dest.parent() {
+            std::fs::create_dir_all(p).map_err(|e| format!("mkdir: {e}"))?;
+        }
+        let name = rel_path.to_string_lossy().to_string();
+        rep.progress(true, "ZIP", &name, done, total);
+        let mut out = std::fs::File::create(&dest).map_err(|e| format!("criar {}: {e}", dest.display()))?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| format!("extrair {name}: {e}"))?;
+        done += entry.size();
+        extracted += 1;
+    }
+    rep.log(format!("ZIP: {extracted} CSV(s) extraído(s)."));
+    Ok(dir)
+}
+
 pub fn build_database(opts: &Options) -> Result<BuildResult, BuildError> {
-    let source = opts.source.clone();
     let output = opts.output.clone();
     let rep = Reporter::new(opts.on_progress.clone());
-    if !source.exists() {
-        return Err(BuildError::Failed(format!("Pasta não encontrada: {}", source.display())));
+    if !opts.source.exists() {
+        return Err(BuildError::Failed(format!("Origem não encontrada: {}", opts.source.display())));
     }
+    let is_zip = opts.source.is_file()
+        && opts.source.extension().map(|e| e.eq_ignore_ascii_case("zip")).unwrap_or(false);
+    let temp = if is_zip { Some(extract_zip(&opts.source, &output, opts, &rep)?) } else { None };
+    let source = temp.as_ref().map(|t| t.0.clone()).unwrap_or_else(|| opts.source.clone());
 
     // ---- Fase 0 ----
     let infos = detect::scan_sources(&source)?;
@@ -326,6 +379,14 @@ fn build_into(
             ));
         }
         let mut phase = phase_a::PhaseA::new(ncols, ineligible);
+        let regional_col = headers.iter().position(|h| h == layers::REGIONAL_HEADER).unwrap_or(usize::MAX);
+        for (k, &fi) in files.iter().enumerate() {
+            if let Some(regional) = &infos[fi].regional {
+                if inverses[k].get(regional_col).copied().flatten().is_none() {
+                    phase.seed(regional_col, regional);
+                }
+            }
+        }
         for (k, &fi) in files.iter().enumerate() {
             check_cancel(&opts.cancel)?;
             let info = &infos[fi];
@@ -491,6 +552,7 @@ fn build_into(
                         record,
                         inverse,
                         ncols,
+                        regional_col,
                         &ix,
                         &dict_index,
                         material_idx,
@@ -665,7 +727,7 @@ fn build_into(
         format: "neogrid-sqlite".to_string(),
         version: 2,
         built_at: now_ms(),
-        source: source.to_string_lossy().to_string(),
+        source: opts.source.to_string_lossy().to_string(),
         rows: total_rows,
         located: total_located,
         total_length,
@@ -707,7 +769,7 @@ fn build_into(
         format: "neogrid-build-manifest".to_string(),
         version: 1,
         built_at: now_ms(),
-        source: source.to_string_lossy().to_string(),
+        source: opts.source.to_string_lossy().to_string(),
         output: opts.output.to_string_lossy().to_string(),
         reject_limit: opts.reject_limit,
         layers: manifest_layers,
@@ -795,6 +857,7 @@ fn feed_row(
     record: &csv::StringRecord,
     inverse: &[Option<usize>],
     ncols: usize,
+    regional_col: usize,
     ix: &LayerIndexes,
     dict_index: &HashMap<usize, HashMap<String, i64>>,
     material_idx: isize,
@@ -855,6 +918,7 @@ fn feed_row(
     let cell = |c: usize| -> &str {
         match inverse.get(c).copied().flatten() {
             Some(s) => record.get(s).unwrap_or(""),
+            None if c == regional_col => info.regional.as_deref().unwrap_or(""),
             None => "",
         }
     };

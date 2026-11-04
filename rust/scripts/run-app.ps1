@@ -17,15 +17,14 @@ param(
   [ValidateSet('debug', 'release')]
   [string]$Profile = 'debug',
   [switch]$NoBuild,
-  [string]$Target = 'x86_64-pc-windows-gnu',
-  [string]$W64Devkit = 'C:\Users\ORION\w64devkit\w64devkit\bin'
+  [string]$Target = 'x86_64-pc-windows-gnu'
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'env.ps1')
 $root = Split-Path $PSScriptRoot                 # rust/
 $repo = Split-Path $root                         # raiz do projeto
 $app = Join-Path $root 'neogrid-app'
 $exe = Join-Path $root "target\$Target\$Profile\neogrid-app.exe"
-$env:PATH = "$W64Devkit;$env:PATH"
 
 function Invoke-Cargo {
   param([string]$CargoArgs, [string]$Log)
@@ -53,7 +52,7 @@ if (-not $NoBuild) {
     $code = Invoke-Cargo -CargoArgs $argsBuild -Log $log
     if ($code -ne 0) {
       $text = Get-Content $log -Raw -ErrorAction SilentlyContinue
-      if ($text -match 'resource\.lib' -and $text -match 'not recognized') {
+      if (($text -match 'resource\.lib' -and $text -match 'not recognized') -or ($text -match 'linking with' -and $text -match 'collect2\.exe: error')) {
         Write-Host "resource.lib em formato .res -> convertendo com windres e repetindo" -ForegroundColor Yellow
         & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'fix-tauri-res.ps1') -Target $Target -Profile $Profile
         $code = Invoke-Cargo -CargoArgs $argsBuild -Log $log

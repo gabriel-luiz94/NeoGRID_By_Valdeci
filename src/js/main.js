@@ -11,13 +11,11 @@ import { exportLayerCsv } from './data/csv-export.js';
 import { MapView } from './modules/map/map-view.js';
 import { search } from './modules/search.js';
 import { initExports } from './modules/views/exports.js';
-import { initDxf } from './modules/dxf/dxf-ui.js';
-import { initStreets } from './modules/streets.js';
 import { initKml } from './modules/kml.js';
 import { initPrint } from './modules/print.js';
+import { initProjeto } from './modules/projeto/index.js';
 import { initSettings } from './modules/views/settings.js';
 import { initFieldDialogs } from './ui/field-dialogs.js';
-import { initLabelsDialog } from './ui/labels-dialog.js';
 import { initDbBuildDialog } from './data/db-build-ui.js';
 import { initRowDialog, openRowDialog } from './ui/row-dialog.js';
 import { toast } from './ui/toast.js';
@@ -41,8 +39,6 @@ const VIEW_CONFIG = {
 };
 
 let mapView = null;
-let dxfApi = null;
-let streetsApi = null;
 let kmlApi = null;
 let printApi = null;
 let projectApi = null;
@@ -54,12 +50,13 @@ function setPage(view) {
   $('#pageEyebrow').textContent = config.eyebrow;
   $('#pageTitle').textContent = config.title;
   $('#pageSubtitle').textContent = config.subtitle;
-  $$('.sidebar-nav .nav-item').forEach((button) => {
+  $$('.sidebar-nav .nav-item[data-view]').forEach((button) => {
     button.classList.toggle('is-active', button.dataset.view === view);
   });
   $$('.view').forEach((section) => {
     section.classList.toggle('is-active', section.dataset.view === view);
   });
+  document.body.classList.toggle('is-view-map', view === 'map');
   currentView = view;
   bus.emit('ui:view', view);
   if (view !== 'map' && $('#statusText')?.textContent.startsWith('Selecionado:')) {
@@ -127,7 +124,7 @@ function setStatus(text, type = 'ready') {
 }
 
 function bindShell() {
-  $$('.sidebar-nav .nav-item').forEach((button) => {
+  $$('.sidebar-nav .nav-item[data-view]').forEach((button) => {
     button.addEventListener('click', () => setPage(button.dataset.view));
   });
 
@@ -166,6 +163,8 @@ function bindShell() {
     const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)
       || document.activeElement?.isContentEditable;
     const dialogOpen = Boolean(document.querySelector('dialog[open]'));
+    // Com o painel do Projeto aberto, o teclado pertence às ferramentas dele.
+    if (document.body.classList.contains('is-projeto')) return;
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
       event.preventDefault();
@@ -180,8 +179,6 @@ function bindShell() {
     if (event.key === 'Escape') {
       if (dialogOpen) return;
       printApi?.close();
-      dxfApi?.cancel();
-      streetsApi?.cancel();
       kmlApi?.cancel();
       mapView?.clearSelection();
       search.hide();
@@ -210,8 +207,6 @@ function bindShell() {
     } else if (key === 's') {
       setPage('map');
       setTimeout(() => mapView.goToScale(settings.scale), 120);
-    } else if (key === 'd') {
-      dxfApi?.start();
     }
   });
 
@@ -286,6 +281,38 @@ function wireCsvExport() {
   });
 }
 
+const ULTIMA_BASE = 'neogrid.ultimaBase';
+const ULTIMA_VISTA = 'neogrid.ultimaVista';
+
+/** Como no CTWeb: abre direto na última base e na última posição do mapa. */
+async function reabrirUltimaBase() {
+  const caminho = localStorage.getItem(ULTIMA_BASE);
+  if (!caminho || !window.desktop?.dbOpen) return false;
+  const aberta = await window.desktop.dbOpen(caminho);
+  if (!aberta?.opened) {
+    localStorage.removeItem(ULTIMA_BASE);
+    toast.info('Última base não encontrada', 'Abra a base novamente em Importar.', { duration: 6000 });
+    return false;
+  }
+  const { openDatabaseInfo } = await import('./data/import-controller.js');
+  await openDatabaseInfo(aberta.info);
+  try {
+    const vista = JSON.parse(localStorage.getItem(ULTIMA_VISTA) || 'null');
+    if (vista) setTimeout(() => mapView.map.setView([vista.lat, vista.lng], vista.zoom, { animate: false }), 50);
+  } catch { /* sem vista salva */ }
+  return true;
+}
+
+function lembrarSessao() {
+  bus.on('data:changed', () => {
+    if (library.dbInfo?.path) localStorage.setItem(ULTIMA_BASE, library.dbInfo.path);
+  });
+  mapView.map.on('moveend', () => {
+    const centro = mapView.map.getCenter();
+    localStorage.setItem(ULTIMA_VISTA, JSON.stringify({ lat: centro.lat, lng: centro.lng, zoom: mapView.map.getZoom() }));
+  });
+}
+
 function bindGlobalErrors() {
   let count = 0;
   const report = (message) => {
@@ -325,20 +352,19 @@ function init() {
     navigate: (view) => setPage(view),
     fitData: (options) => mapView.fitData(options),
   });
-  dxfApi = initDxf({ mapView, navigate: (view) => setPage(view) });
-  streetsApi = initStreets({ mapView, navigate: (view) => setPage(view) });
   kmlApi = initKml({ mapView, navigate: (view) => setPage(view) });
   printApi = initPrint({ mapView, navigate: (view) => setPage(view) });
+  initProjeto({ mapView, navigate: (view) => setPage(view) });
   initExports();
   wireCsvExport();
   initSettings();
   initFieldDialogs();
-  initLabelsDialog();
   initDbBuildDialog();
   search.init({ mapView });
 
   bindShell();
   bindGlobalErrors();
+  lembrarSessao();
   $$('dialog.modal form').forEach((form) => {
     form.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.target.closest('button')) event.preventDefault();
@@ -349,13 +375,16 @@ function init() {
 
   const splash = $('#splash');
   requestAnimationFrame(() => {
-    setTimeout(() => splash?.classList.add('is-hidden'), 500);
+    splash?.classList.add('is-hidden');
   });
 
   const isTest = new URLSearchParams(location.search).get('test') === '1';
   if (!isTest) {
-    persistence.refreshStatus().then(() => persistence.autoload()).then((result) => {
-      if (result?.loaded) setTimeout(() => mapView.fitData({ animate: false }), 350);
+    reabrirUltimaBase().then((abriu) => {
+      if (abriu) return null;
+      return persistence.refreshStatus().then(() => persistence.autoload()).then((result) => {
+        if (result?.loaded) setTimeout(() => mapView.fitData({ animate: false }), 350);
+      });
     }).catch((error) => console.error('[projeto] autoload', error));
   }
   if (isTest) {
@@ -365,7 +394,6 @@ function init() {
       mapView,
       bus,
       persistence,
-      streets: streetsApi,
       kml: kmlApi,
       setView: setPage,
       openRowDialog,

@@ -1,0 +1,326 @@
+/* Módulo Projeto: painéis na coluna do mapa, no visual do NeoGrid. */
+
+.ng-paineis {
+  display: none;
+  grid-column: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.map-layout.is-prj {
+  grid-template-columns: var(--prj-w, 420px) minmax(0, 1fr) 0 !important;
+}
+
+.map-layout.is-prj .ng-paineis { display: block; }
+.map-layout.is-prj .map-panel,
+.map-layout.is-prj .inspector { display: none; }
+
+/* Com o projeto aberto, só o desenho dele aparece sobre o mapa. */
+.map-stage.is-projeto-ativo .map-data-canvas { visibility: hidden !important; }
+.map-stage.is-projeto-ativo .map-legend,
+.map-stage.is-projeto-ativo .map-float-toolbar { display: none; }
+
+.prj-painel {
+  --prj-texto: var(--text, #e6eaee);
+  --prj-mudo: var(--muted, #8b97a4);
+  --prj-linha: var(--border, #232b35);
+  height: 100%;
+  overflow: auto;
+  padding: 14px 16px;
+  display: grid;
+  gap: 9px;
+  align-content: start;
+  color: var(--prj-texto);
+  font-size: 12.5px;
+}
+
+.prj-painel[hidden],
+#prj.prj-recuado { display: none; }
+
+.prj-painel-coluna { display: flex; flex-direction: column; padding: 0; }
+.prj-painel-coluna[hidden] { display: none; }
+
+.prj-grade { display: grid; gap: 9px; align-content: start; min-width: 0; }
+.prj-grade[hidden] { display: none; }
+.prj-linha { display: flex; flex-wrap: wrap; gap: 6px; }
+.prj-status { color: var(--prj-mudo); word-break: break-word; }
+
+.prj-abas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.prj-abas[hidden] { display: none; }
+.prj-abas button { padding: 6px 2px; min-width: 0; }
+.prj-abas button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.prj-painel button,
+.prj-painel select,
+.prj-painel textarea,
+.prj-painel input[type=text],
+.prj-painel input[type=number],
+.prj-painel input[type=search] {
+  font: inherit;
+  color: var(--prj-texto);
+  background: var(--bg);
+  border: 1px solid var(--prj-linha);
+  border-radius: var(--radius-xs);
+  padding: 5px 9px;
+}
+
+.prj-painel button { cursor: pointer; background: transparent; transition: background .12s, border-color .12s; }
+.prj-painel button:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-line); }
+.prj-painel button:disabled { opacity: .5; cursor: default; }
+.prj-painel button.p { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.prj-painel button.p:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+.prj-painel button.on { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.prj-painel button:focus-visible,
+.prj-painel input:focus-visible,
+.prj-painel select:focus-visible,
+.prj-painel textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.prj-painel input[type=checkbox] { accent-color: var(--accent); }
+.prj-painel small { color: var(--prj-mudo); }
+.prj-painel b { font-weight: 600; }
+.prj-painel label.c { display: inline-flex; align-items: center; gap: 6px; color: var(--prj-mudo); }
+
+.prj-painel .ph { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prj-painel .ph b, #sph b { font-size: 14.5px; }
+.prj-painel .fr { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; align-items: center; margin: 4px 0; color: var(--prj-mudo); }
+.prj-painel .fr input[type=text],
+.prj-painel .fr input[type=number],
+.prj-painel .fr select,
+.prj-painel .fr textarea { width: 100%; }
+.prj-painel .fr input[type=color] { width: 60px; height: 28px; padding: 0; border: 1px solid var(--prj-linha); background: none; }
+.prj-painel .fr input[type=checkbox] { justify-self: start; width: 17px; height: 17px; }
+.prj-painel .lab { color: var(--prj-mudo); margin: 8px 0 2px; font-size: 12px; }
+.prj-painel .hint { color: var(--prj-mudo); font-size: 12px; margin: 4px 0 8px; }
+.prj-painel .mut { color: var(--prj-mudo); font-size: 12px; }
+.prj-painel .warn { color: #f5b971; }
+.prj-painel .sec { border: 1px solid var(--prj-linha); border-radius: var(--radius-sm); margin: 8px 0; padding: 4px 10px 8px; }
+.prj-painel .sec > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.prj-painel .card { border: 1px solid var(--prj-linha); border-radius: var(--radius-sm); padding: 8px 10px; margin: 0 0 8px; background: var(--bg); display: grid; gap: 6px; }
+.prj-painel .bloc { display: flex; gap: 10px; }
+.prj-painel .bi { flex: 1; }
+.prj-painel .bprev { border: 1px solid var(--prj-linha); border-radius: 6px; height: 72px; }
+.prj-painel button.mt { margin-top: 10px; }
+.prj-painel .mono { font: 12px Consolas, "Courier New", monospace; width: 100%; resize: vertical; }
+.prj-painel .ex-tools { display: flex; gap: 4px; flex-wrap: wrap; margin: 3px 0; }
+.prj-painel .ex-tools select { max-width: 150px; padding: 3px 6px; font-size: 12px; }
+.prj-painel .ex-st { font-size: 12px; color: var(--prj-mudo); white-space: pre-wrap; word-break: break-word; }
+.prj-painel .ex-st.err { color: #ff8a8a; }
+.prj-painel .ex-st.ok { color: #9be3b0; }
+.prj-painel .qs { overflow: auto; border: 1px solid var(--prj-linha); margin: 6px 0; max-height: 240px; }
+.prj-painel .qt { border-collapse: collapse; font-size: 12px; }
+.prj-painel table.qt { width: 100%; }
+.prj-painel .qt th, .prj-painel .qt td { border-bottom: 1px solid var(--prj-linha); padding: 3px 6px; text-align: left; white-space: nowrap; }
+.prj-painel .qt td.n { text-align: right; }
+.prj-painel .qt tr.clk { cursor: pointer; }
+.prj-painel .qt tr.clk:hover { background: var(--accent-soft); }
+.prj-painel .sub, .prj-painel .chips, .prj-painel .ch, #spt { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.prj-painel .sub { margin-bottom: 8px; }
+.prj-painel .chips { margin: 6px 0; }
+.prj-painel .ch { margin: 4px 0; }
+.prj-painel .ch input[type=text] { flex: 1; min-width: 80px; }
+.prj-painel .st-l { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; align-items: center; }
+.prj-painel .st-l i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #6b7280; }
+.prj-painel .st-l i.ok { background: #3ddc84; }
+.prj-painel .st-l i.run { background: #3b82f6; animation: prj-pisca 1s infinite alternate; }
+.prj-painel .st-l i.av { background: #ffd400; }
+.prj-painel .st-l i.er { background: #ff3b30; }
+@keyframes prj-pisca { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .prj-painel .st-l i.run { animation: none; }
+  #prog .pbar.ind i { animation: none; width: 100%; }
+}
+
+#sph { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+#spt { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+#spc { overflow: auto; padding: 12px 16px; flex: 1; }
+#spc button { padding: 3px 9px; }
+#dxo .fr { margin: 2px 0; }
+#pacc { display: grid; gap: 0; }
+.pac-res { margin-top: 8px; }
+
+/* Sobre o mapa */
+#modo {
+  position: absolute; z-index: 800; left: 50%; top: 12px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-subtle); color: var(--text, #e6eaee);
+  border: 1px solid var(--accent-line); border-left: 4px solid var(--accent); border-radius: var(--radius-sm);
+  padding: 6px 8px 6px 14px; box-shadow: 0 4px 16px rgba(0, 0, 0, .5);
+  max-width: min(720px, 90%); font-size: 13px; font-weight: 500;
+}
+#modo[hidden] { display: none; }
+#modo button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 3px 10px; white-space: nowrap; cursor: pointer; }
+#prog {
+  position: absolute; z-index: 1200; left: 50%; bottom: 34px; transform: translateX(-50%);
+  background: var(--bg-subtle); color: var(--text, #e6eaee);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: 10px 14px; min-width: 300px; box-shadow: 0 6px 24px rgba(0, 0, 0, .55); font-size: 13px;
+}
+#prog[hidden] { display: none; }
+#prog .pbar { height: 5px; background: var(--bg); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+#prog .pbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+#prog .pbar.ind i { width: 35%; animation: prj-ind 1.1s ease-in-out infinite alternate; }
+@keyframes prj-ind { from { margin-left: 0; } to { margin-left: 65%; } }
+.edt-vtx { background: #a78bfa; border: 2px solid #fff; border-radius: 2px; box-sizing: border-box; box-shadow: 0 0 3px rgba(0, 0, 0, .65); }
+.medtip { position: absolute; transform: translate(8px, -26px); background: #0b1a22; color: #7dd3fc; border: 1px solid #0ea5e9; border-radius: 5px; padding: 2px 7px; font: 600 12px "Segoe UI", sans-serif; white-space: nowrap; }
+.ic { background: none; border: 0; }
+.lim-rot span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font: 600 11px "Segoe UI", sans-serif; text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none; }
+
+/* Painel de camadas: regionais e limites */
+.regionais-lista { display: grid; gap: 3px; max-height: 190px; overflow: auto; margin-bottom: 8px; }
+.regional-item { display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
+.regional-item input { accent-color: var(--accent); flex: none; }
+.regional-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#limitesBox .input { width: 100%; margin-top: 6px; }
+.lim-lista { display: grid; gap: 2px; margin-top: 4px; }
+.lim-lista .link-btn { justify-content: flex-start; text-align: left; }
+
+#mapMedir.is-active { color: var(--accent); }
+
+/* Aba Entregar: opções avulsas recolhidas; projeto aberto mostra só o essencial da área */
+#prj.prj-on .prj-intro,
+#prj.prj-on .prj-area-botoes { display: none; }
+#ngAlca { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 5; touch-action: none; }
+#ngAlca:hover { background: var(--accent-line); }
+.ng-paineis { position: relative; overflow: visible; }
+
+/* Etapas da criação do projeto */
+#etapas {
+  position: absolute; z-index: 1300; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(460px, 92%); padding: 16px 18px; display: grid; gap: 10px;
+  background: var(--bg-subtle); color: var(--text); font-size: 13px;
+  border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: 0 10px 36px rgba(0, 0, 0, .6);
+}
+#etapas[hidden] { display: none; }
+#etapas button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 5px 10px; cursor: pointer; }
+#etapas button:hover { border-color: var(--accent-line); background: var(--accent-soft); }
+#etapas button[hidden] { display: none; }
+#etapas-l { display: grid; gap: 8px; }
+.etapa { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: start; color: var(--muted); }
+.etapa-run, .etapa-ok, .etapa-erro { color: var(--text); }
+.etapa-c { display: grid; gap: 2px; min-width: 0; }
+.etapa-c b { font-weight: 600; }
+.etapa-c small { color: var(--muted); overflow-wrap: anywhere; }
+.etapa-ic { text-align: center; font-weight: 700; }
+.etapa-ok .etapa-ic { color: #3ddc84; }
+.etapa-run .etapa-ic { color: var(--accent); }
+.etapa-erro .etapa-ic { color: #ff6b5e; }
+.etapa-t { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+.etapa-barra { display: block; height: 4px; margin-top: 3px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.etapa-barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.etapa-barra.ind i { width: 35%; animation: prj-ind 1.1s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .etapa-barra.ind i { animation: none; width: 100%; } }
+
+/* Pacote de ruas */
+.ruas-pack { display: grid; gap: 8px; }
+.ruas-pack-texto { margin: 2px 0 0; color: var(--text-2); }
+.ruas-pack button[hidden] { display: none; }
+.ruas-atribuicao { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+.prj-painel .ruas-pack .btn { padding: 5px 9px; }
+
+/* Mapa: faixa superior compacta */
+body.is-view-map { --topbar-h: 58px; }
+body.is-view-map #pageEyebrow,
+body.is-view-map #pageSubtitle { display: none; }
+
+/* ═══ Módulo Projeto e Estilos no padrão de componentes do NeoGrid ═══ */
+.prj-painel { font-size: 11.5px; gap: 10px; padding: 12px; }
+.prj-painel .ph b, #sph b { font-size: 13px; font-weight: 650; letter-spacing: -.01em; }
+.prj-painel small { font-size: 10.5px; color: var(--muted); }
+
+/* Botões = .btn .btn-ghost .btn-sm */
+.prj-painel button {
+  height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-2);
+  font-size: 10.5px; font-weight: 580; line-height: 1; white-space: nowrap;
+}
+.prj-painel button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.prj-painel button.p {
+  border-color: color-mix(in srgb, var(--accent) 68%, #000 8%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-2) 34%, var(--accent)), var(--accent));
+  color: var(--accent-ink);
+}
+.prj-painel button.p:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.prj-painel button.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); }
+
+/* Campos = .input / .select */
+.prj-painel select,
+.prj-painel textarea,
+.prj-painel input[type=text],
+.prj-painel input[type=number],
+.prj-painel input[type=search] {
+  min-height: 28px; border: 1px solid var(--input-border); border-radius: var(--radius-xs);
+  background: var(--input-bg); color: var(--text); font-size: 11px; padding: 3px 8px;
+}
+.prj-painel textarea { padding: 6px 8px; }
+
+/* Interruptores = .switch */
+.prj-painel .fr input[type=checkbox],
+.prj-painel .sec input[type=checkbox],
+.prj-painel .card input[type=checkbox] {
+  position: relative; width: 34px; height: 19px; flex: none; margin: 0; appearance: none; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: 99px; background: var(--surface-3);
+  transition: background var(--speed), border-color var(--speed);
+}
+.prj-painel .fr input[type=checkbox]::after,
+.prj-painel .sec input[type=checkbox]::after,
+.prj-painel .card input[type=checkbox]::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--muted); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform var(--speed) var(--ease), background var(--speed);
+}
+.prj-painel .fr input[type=checkbox]:checked,
+.prj-painel .sec input[type=checkbox]:checked,
+.prj-painel .card input[type=checkbox]:checked { border-color: color-mix(in srgb, var(--accent) 60%, transparent); background: color-mix(in srgb, var(--accent) 70%, var(--surface-3)); }
+.prj-painel .fr input[type=checkbox]:checked::after,
+.prj-painel .sec input[type=checkbox]:checked::after,
+.prj-painel .card input[type=checkbox]:checked::after { transform: translateX(15px); background: #fff; }
+
+/* Linhas de ajuste = .setting-row, seções = .panel-section */
+.prj-painel .fr { color: var(--text-2); font-size: 11px; grid-template-columns: 1fr 1.1fr; margin: 0; padding: 5px 0; }
+.prj-painel .card,
+.prj-painel .sec { border: 0; border-top: 1px solid var(--border); border-radius: 0; background: none; margin: 0; padding: 10px 0 2px; }
+.prj-painel .card > b,
+.prj-painel .sec > summary,
+.prj-tit > b {
+  color: var(--faint); font-size: 8.5px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase;
+}
+.prj-painel .sec > summary { padding: 2px 0 6px; }
+.prj-tit { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prj-painel button.prj-link { height: auto; padding: 0; border: 0; background: none; color: var(--muted); font-size: 10px; }
+.prj-painel button.prj-link:hover:not(:disabled) { background: none; color: var(--accent-text); }
+
+/* Abas = .panel-tab */
+.prj-abas, #spt { display: flex; gap: 2px; padding: 0 0 8px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+#spt { padding: 8px 10px; }
+.prj-abas button, #spt button { flex: 1; height: 28px; border: 0; border-radius: 5px; background: none; color: var(--faint); font-size: 9.5px; font-weight: 560; }
+.prj-abas button.on, #spt button.on { background: var(--surface-2); border: 0; color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+.prj-painel .sub { gap: 2px; }
+.prj-painel .sub button { height: 24px; border: 0; background: none; color: var(--faint); }
+.prj-painel .sub button.on { background: var(--surface-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--border); }
+#sph { padding: 12px; }
+#spc { padding: 10px 12px; }
+#spc button { height: 28px; padding: 0 10px; }
+
+/* Camadas sempre à vista */
+#pjCamadas { border-top: 0; padding-top: 0; }
+#pjCamadasL { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; margin-top: 4px; }
+.prj-cam { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; color: var(--text-2); font-size: 11px; cursor: pointer; }
+
+/* Sobre o mapa */
+#etapas { background: var(--surface); border-color: var(--border-strong); font-size: 11.5px; }
+#etapas > b { font-size: 13px; font-weight: 650; }
+#etapas button { height: 28px; padding: 0 10px; border-radius: 7px; background: var(--surface); font-size: 10.5px; font-weight: 580; color: var(--text-2); }
+#modo { background: var(--surface); font-size: 11.5px; }
+#modo button { height: 26px; font-size: 10.5px; border-radius: 7px; background: var(--surface); color: var(--text-2); }
+#prog { background: var(--surface); font-size: 11.5px; }
+
+/* Legenda do mapa como seletor de camadas */
+#mapLegend button.legend-item { background: none; border: 0; padding: 2px 5px; border-radius: 5px; font: inherit; color: inherit; cursor: pointer; pointer-events: auto; display: inline-flex; align-items: center; gap: inherit; }
+#mapLegend button.legend-item:hover { background: var(--surface-2); }
+#mapLegend button.legend-item.is-off { opacity: .45; text-decoration: line-through; }
+#mapLegend { pointer-events: auto; }

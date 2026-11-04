@@ -1,4 +1,5 @@
+# O linker e o `ar` vêm do PATH (w64devkit), configurado por `rust/scripts/env.ps1`.
+# Nada de caminho absoluto aqui: o projeto compila em qualquer máquina.
 [target.x86_64-pc-windows-gnu]
-linker = "C:\\Users\\ORION\\w64devkit\\w64devkit\\bin\\gcc.exe"
-ar = "C:\\Users\\ORION\\w64devkit\\w64devkit\\bin\\ar.exe"
-rustflags = ["-L", "D:\\projetos\\BASE-NEOENERGIA PE\\rust\\.libfix"]
+linker = "gcc"
+ar = "ar"

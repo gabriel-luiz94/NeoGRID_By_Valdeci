@@ -16,6 +16,8 @@ pub struct FileInfo {
     pub by_headers: Option<Layer>,
     pub conflict: bool,
     pub size: u64,
+    /// Pasta da regional (primeiro nível abaixo da origem), quando houver.
+    pub regional: Option<String>,
 }
 
 fn parse_header_line(line: &str, delim: char) -> Vec<String> {
@@ -73,7 +75,36 @@ fn inspect_file(path: &Path) -> Result<FileInfo, String> {
         by_headers,
         conflict,
         size,
+        regional: None,
     })
+}
+
+/// As pastas abaixo da origem viram regionais. Se tudo está dentro de uma única
+/// pasta raiz (extração com pasta "envelope"), usa o nível seguinte.
+fn assign_regionals(source: &Path, infos: &mut [FileInfo]) {
+    let parts: Vec<Vec<String>> = infos
+        .iter()
+        .map(|info| {
+            info.file
+                .strip_prefix(source)
+                .map(|rel| rel.iter().map(|c| c.to_string_lossy().to_string()).collect())
+                .unwrap_or_default()
+        })
+        .collect();
+    let mut tops = std::collections::HashSet::new();
+    for p in &parts {
+        tops.insert(if p.len() > 1 { p[0].as_str() } else { "" });
+    }
+    let level = usize::from(tops.len() == 1 && !tops.contains(""));
+    for (info, p) in infos.iter_mut().zip(&parts) {
+        info.regional = if p.len() > level + 1 {
+            Some(p[level].clone())
+        } else if level == 1 && p.len() > 1 {
+            Some(p[0].clone())
+        } else {
+            None
+        };
+    }
 }
 
 pub fn scan_sources(source: &Path) -> Result<Vec<FileInfo>, String> {
@@ -104,5 +135,6 @@ pub fn scan_sources(source: &Path) -> Result<Vec<FileInfo>, String> {
     for p in &csvs {
         infos.push(inspect_file(p)?);
     }
+    assign_regionals(source, &mut infos);
     Ok(infos)
 }

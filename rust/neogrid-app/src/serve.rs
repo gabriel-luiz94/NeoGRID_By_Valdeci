@@ -81,15 +81,19 @@ fn serve_file(path: &str) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
 
 /// Sobe o servidor em thread dedicada e devolve a porta escolhida.
 ///
-/// - Sempre usa porta efêmera (0) por padrão: nunca conflita com outra
-///   ferramenta. `NEOGRID_FRONTEND_PORT` força uma porta específica.
+/// - Usa uma porta fixa: o WebView guarda `localStorage` por origem, e com uma
+///   porta diferente a cada abertura as preferências se perderiam.
+///   `NEOGRID_FRONTEND_PORT` força outra porta.
 /// - Se a porta preferida estiver ocupada, cai para efêmera.
+const DEFAULT_PORT: u16 = 48765;
+
 pub fn spawn_server() -> Option<u16> {
     let preferred = std::env::var("NEOGRID_FRONTEND_PORT")
         .ok()
-        .and_then(|v| v.parse::<u16>().ok());
-    let server = preferred
-        .and_then(|port| tiny_http::Server::http(("127.0.0.1", port)).ok())
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_PORT);
+    let server = tiny_http::Server::http(("127.0.0.1", preferred))
+        .ok()
         .or_else(|| tiny_http::Server::http(("127.0.0.1", 0)).ok())?;
     let port = server.server_addr().to_ip()?.port();
     std::thread::Builder::new()

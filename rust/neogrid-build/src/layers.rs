@@ -28,6 +28,9 @@ pub const LAT_HEADERS: &[&str] = &["NU_LATITUDE", "GEO_Y", "LATITUDE", "LAT"];
 pub const WKT_HEADERS: &[&str] = &["GEOMETRIA_WKT"];
 pub const LENGTH_HEADERS: &[&str] = &["NU_COMPRIMENTO_REAL", "SHP_LENGTH"];
 
+/// Coluna derivada da pasta de origem de cada arquivo.
+pub const REGIONAL_HEADER: &str = "REGIONAL";
+
 pub const DICT_MAX_DISTINCT: usize = 2000;
 pub const DICT_TRACK_CAP: usize = 5000;
 /// `WKT_DEFLATE_OVER` — JS compara `text.length` (unidades UTF-16);
@@ -95,6 +98,9 @@ pub fn union_headers(files: &[usize], infos: &[crate::detect::FileInfo]) -> Vec<
                 out.push(h.clone());
             }
         }
+    }
+    if files.iter().any(|&fi| infos[fi].regional.is_some()) && seen.insert(REGIONAL_HEADER.to_string()) {
+        out.push(REGIONAL_HEADER.to_string());
     }
     out
 }

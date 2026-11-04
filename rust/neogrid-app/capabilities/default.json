@@ -28,7 +28,22 @@
     "allow-app-open-external",
     "allow-app-info",
     "allow-window-overlay-theme",
-    "allow-net-fetch-text"
+    "allow-net-fetch-text",
+    "allow-db-area",
+    "allow-db-sql",
+    "allow-db-pick-zip",
+    "allow-ws-get",
+    "allow-ws-put",
+    "allow-ws-delete-prefix",
+    "allow-ws-stats",
+    "allow-pack-pick",
+    "allow-pack-write",
+    "allow-ruas-pack-status",
+    "allow-ruas-pack-tile",
+    "allow-ruas-pack-import",
+    "allow-ruas-pack-export",
+    "allow-ruas-pack-download",
+    "allow-ruas-pack-cancel"
   ],
   "remote": { "urls": ["http://localhost:*/", "http://127.0.0.1:*/"] }
 }

@@ -244,7 +244,6 @@ export function initPrint(options = {}) {
     `<option value="${name}" ${name === 'A3' ? 'selected' : ''}>${name} · ${dims[0]} × ${dims[1]} mm</option>`
   )).join('');
 
-  document.querySelector('#printTop')?.addEventListener('click', openPanel);
   document.querySelector('#mapPrint')?.addEventListener('click', openPanel);
   document.querySelector('#exportPrintGo')?.addEventListener('click', openPanel);
   els.close?.addEventListener('click', closePanel);

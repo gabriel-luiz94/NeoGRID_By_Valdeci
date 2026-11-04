@@ -7,6 +7,7 @@ pub mod geom;
 pub mod layers;
 pub mod phase_a;
 pub mod rows;
+pub mod ruas;
 pub mod schema_json;
 pub mod stats;
 

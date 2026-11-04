@@ -134,7 +134,7 @@ export function initSettings() {
     if (!grid || !info) return;
     grid.innerHTML = `
       <div><span>Aplicativo</span><strong>NeoGrid ${info.version}</strong></div>
-      <div><span>Ambiente</span><strong>Electron ${info.electron}</strong></div>
+      <div><span>Ambiente</span><strong>Tauri · WebView2</strong></div>
       <div><span>Plataforma</span><strong>${info.platform} · ${info.arch}</strong></div>
       <div><span>Dados</span><strong>Não saem do dispositivo</strong></div>`;
   }).catch(() => {});

@@ -594,7 +594,6 @@ function init(options) {
   };
   if (!els.dialog) return;
 
-  $('#sidebarImport')?.addEventListener('click', () => openImport());
   $('#topImport')?.addEventListener('click', () => openImport());
   $('#dataImport')?.addEventListener('click', () => openImport());
   $('#dashImport')?.addEventListener('click', () => openImport());

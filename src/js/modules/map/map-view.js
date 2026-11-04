@@ -169,6 +169,7 @@ export class MapView {
     this.activeLayers[type] = Boolean(visible);
     this.updateLayerPanel();
     this.renderer.schedule();
+    bus.emit('layers:changed');
   }
 
   restoreMapPanel() {
@@ -209,6 +210,12 @@ export class MapView {
   setDxfMode(active) {
     this.dxfMode = Boolean(active);
     this.stageElement.classList.toggle('is-dxf-selecting', this.dxfMode);
+  }
+
+  /** No módulo Projeto só o desenho do projeto aparece: as camadas e o inspetor saem de cena. */
+  setProjectMode(active) {
+    this.stageElement.classList.toggle('is-projeto-ativo', Boolean(active));
+    if (active) this.clearSelection();
   }
 
   suppressClicks(milliseconds = 350) {
@@ -563,7 +570,7 @@ export class MapView {
   }
 
   async handleMapClick(event) {
-    if (Date.now() < this.suppressClickUntil || this.dxfMode) return;
+    if (Date.now() < this.suppressClickUntil || this.dxfMode || this.clickCapture?.()) return;
     this.map.closePopup();
     if (!library.hasData()) return;
     if (this.map.getZoom() < 15) return;

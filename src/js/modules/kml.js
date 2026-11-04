@@ -314,7 +314,10 @@ function clearLayer() {
 }
 
 function featureColor(feature, kind, fallback) {
-  if (!state.options.useKmlColors) return fallback;
+  const estilo = window.ngMapa?.kml();
+  const base = estilo ? (kind === 'point' ? estilo.ponto : estilo.linha) : fallback;
+  if (!(estilo ? estilo.corKml : state.options.useKmlColors)) return base;
+  fallback = base;
   const style = feature.style || {};
   if (kind === 'point') return style.iconColor || style.labelColor || fallback;
   if (kind === 'line') return style.lineColor || fallback;
@@ -322,7 +325,8 @@ function featureColor(feature, kind, fallback) {
 }
 
 function addLabel(leafletLayer, name, className = 'kml-label') {
-  if (!state.options.showLabels || !name) return;
+  const estilo = window.ngMapa?.kml();
+  if (!(estilo ? estilo.rotulos : state.options.showLabels) || !name) return;
   leafletLayer.bindTooltip(esc(name), {
     permanent: true,
     direction: 'center',
@@ -372,7 +376,7 @@ function render() {
         const line = L.polyline(feature.pts, {
           pane: 'kmlPane',
           color,
-          weight: feature.style?.width || 2,
+          weight: feature.style?.width || (window.ngMapa?.kml().larg ?? 2),
           opacity: feature.style?.lineAlpha ?? 0.9,
           interactive: false,
         });
@@ -392,7 +396,7 @@ function render() {
         const color = featureColor(feature, 'point', state.options.pointColor);
         const marker = L.circleMarker([feature.lat, feature.lon], {
           pane: 'kmlPane',
-          radius: 5,
+          radius: window.ngMapa?.kml().raio ?? 5,
           color: '#0b1220',
           weight: 1.4,
           fillColor: color,
@@ -408,7 +412,7 @@ function render() {
     }
   }
 
-  layer.addTo(map);
+  if (!state.oculto) layer.addTo(map);
   updateDock();
 }
 
@@ -420,35 +424,11 @@ function summary() {
 }
 
 function updateDock() {
-  if (!els.dock) return;
-  const { points, lines, polygons } = summary();
-  if (els.info) {
-    els.info.textContent = state.files.length
-      ? `${state.files.length} arquivo${state.files.length === 1 ? '' : 's'} · ${fmtInt(points)} pontos · ${fmtInt(lines)} linhas · ${fmtInt(polygons)} áreas`
-      : 'Nenhum KML carregado';
-  }
-  if (els.summary) {
-    els.summary.innerHTML = state.files.length
-      ? `<span><i style="--c:#f472b6"></i>${fmtInt(points)} pontos</span>
-         <span><i style="--c:#38bdf8"></i>${fmtInt(lines)} linhas</span>
-         <span><i style="--c:#22c55e"></i>${fmtInt(polygons)} áreas</span>`
-      : '';
-  }
   if (els.fit) els.fit.disabled = !state.files.length;
-  if (els.clear) els.clear.disabled = !state.files.length;
   document.querySelector('#mapKml')?.classList.toggle('is-active', state.files.length > 0);
 }
 
-function openKmlDock() {
-  if (!els.dock) return;
-  els.dock.hidden = false;
-  bus.emit('map:dock', 'kml');
-  updateDock();
-}
-
-function hideKmlDock() {
-  if (els.dock) els.dock.hidden = true;
-}
+function hideKmlDock() {}
 
 function fitBounds(bounds, { maxZoom = 18 } = {}) {
   if (!bounds) return;
@@ -517,7 +497,6 @@ async function importFiles(fileList) {
   renderFiles();
   updateImportStatus();
   if (state.fitOnImport && firstBounds) fitBounds(firstBounds);
-  openKmlDock();
 }
 
 function updateImportStatus(text) {
@@ -599,12 +578,8 @@ export function initKml(options = {}) {
   deps = options;
   els = {
     dialog: document.querySelector('#kmlDialog'),
-    dock: document.querySelector('#kmlDock'),
-    info: document.querySelector('#kmlInfo'),
-    summary: document.querySelector('#kmlSummary'),
     fit: document.querySelector('#kmlFit'),
     clear: document.querySelector('#kmlClear'),
-    close: document.querySelector('#kmlDockClose'),
     fileInput: document.querySelector('#kmlFileInput'),
     pick: document.querySelector('#kmlPick'),
     importStatus: document.querySelector('#kmlImportStatus'),
@@ -628,8 +603,7 @@ export function initKml(options = {}) {
   render();
 
   document.querySelector('#mapKml')?.addEventListener('click', () => {
-    if (els.dock?.hidden) openKmlDock();
-    else hideKmlDock();
+    openKmlDialog();
   });
   document.querySelector('#exportKmlImport')?.addEventListener('click', () => {
     openKmlDialog();
@@ -637,11 +611,6 @@ export function initKml(options = {}) {
   });
   document.querySelector('#exportKmlManage')?.addEventListener('click', openKmlDialog);
   document.querySelector('#dxfKmlManage')?.addEventListener('click', openKmlDialog);
-  document.querySelector('#kmlSettingsQuick')?.addEventListener('click', openKmlDialog);
-  document.querySelector('#kmlImportQuick')?.addEventListener('click', () => {
-    openKmlDialog();
-    setTimeout(() => els.fileInput?.click(), 220);
-  });
   els.pick?.addEventListener('click', () => els.fileInput?.click());
   els.fileInput?.addEventListener('change', async () => {
     const files = [...(els.fileInput.files || [])];
@@ -649,7 +618,6 @@ export function initKml(options = {}) {
     await importFiles(files);
   });
 
-  els.close?.addEventListener('click', hideKmlDock);
   els.fit?.addEventListener('click', fitAll);
   els.clear?.addEventListener('click', () => {
     if (!state.files.length) return;
@@ -727,17 +695,21 @@ export function initKml(options = {}) {
   });
 
   bus.on('map:dock', (id) => {
-    if (id !== 'kml' && els.dock && !els.dock.hidden) hideKmlDock();
   });
   bus.on('map:kml-close', hideKmlDock);
   bus.on('ui:view', (view) => {
     if (view !== 'map') hideKmlDock();
   });
-  bus.on('kml:open', () => openKmlDock());
+  bus.on('kml:open', () => openKmlDialog());
+  bus.on('estilos:changed', () => { if (state.files.length) render(); });
+  document.querySelector('#kmlEstilos')?.addEventListener('click', () => {
+    els.dialog?.close?.();
+    bus.emit('labels:open', 'kmlp');
+  });
   bus.on('kml:manage', () => openKmlDialog());
 
   return {
-    open: openKmlDock,
+    open: openKmlDialog,
     dialog: openKmlDialog,
     close: hideKmlDock,
     cancel: hideKmlDock,
@@ -792,6 +764,12 @@ export function getKmlExportData() {
     }
   }
   return { features, labels: state.options.showLabels !== false };
+}
+
+/** Liga ou desliga o KML inteiro no mapa, a partir das camadas do Projeto. */
+export function setKmlVisible(visivel) {
+  state.oculto = !visivel;
+  render();
 }
 
 export function hasKmlData() {

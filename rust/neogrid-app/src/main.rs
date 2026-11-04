@@ -12,7 +12,7 @@ mod serve;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use commands::{BuildState, DbState};
+use commands::{BuildState, DbState, PackState, WsState};
 
 fn smoke(db: &str) -> Result<(), String> {
     let mgr = neogrid_query::Manager::open(&PathBuf::from(db))?;
@@ -47,6 +47,8 @@ fn main() {
     builder = builder
         .manage(DbState(Mutex::new(None)))
         .manage(BuildState::default())
+        .manage(WsState::default())
+        .manage(PackState::default())
         // Segunda instância apenas foca a janela existente (como o
         // `requestSingleInstanceLock` do Electron).
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -59,60 +61,45 @@ fn main() {
         // Restaura posição/tamanho da janela entre execuções
         // (equivalente ao `window-state.json` do Electron).
         .plugin(tauri_plugin_window_state::Builder::default().build());
-    #[cfg(debug_assertions)]
-    {
-        builder = builder.invoke_handler(tauri::generate_handler![
-            commands::db_open,
-            commands::db_open_dialog,
-            commands::db_info,
-            commands::db_close,
-            commands::db_query,
-            commands::db_pick_folder,
-            commands::db_pick_output,
-            commands::db_build_start,
-            commands::db_build_cancel,
-            commands::db_build_busy,
-            commands::project_status,
-            commands::project_write_autosave,
-            commands::project_read_autosave,
-            commands::project_clear_autosave,
-            commands::project_save_as,
-            commands::project_open_file,
-            commands::file_save,
-            commands::file_reveal,
-            commands::app_open_external,
-            commands::app_info,
-            commands::window_overlay_theme,
-            commands::net_fetch_text,
-        ]);
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        builder = builder.invoke_handler(tauri::generate_handler![
-            commands::db_open,
-            commands::db_open_dialog,
-            commands::db_info,
-            commands::db_close,
-            commands::db_query,
-            commands::db_pick_folder,
-            commands::db_pick_output,
-            commands::db_build_start,
-            commands::db_build_cancel,
-            commands::db_build_busy,
-            commands::project_status,
-            commands::project_write_autosave,
-            commands::project_read_autosave,
-            commands::project_clear_autosave,
-            commands::project_save_as,
-            commands::project_open_file,
-            commands::file_save,
-            commands::file_reveal,
-            commands::app_open_external,
-            commands::app_info,
-            commands::window_overlay_theme,
-            commands::net_fetch_text,
-        ]);
-    }
+    builder = builder.invoke_handler(tauri::generate_handler![
+        commands::db_open,
+        commands::db_open_dialog,
+        commands::db_info,
+        commands::db_close,
+        commands::db_query,
+        commands::db_pick_folder,
+        commands::db_pick_output,
+        commands::db_build_start,
+        commands::db_build_cancel,
+        commands::db_build_busy,
+        commands::project_status,
+        commands::project_write_autosave,
+        commands::project_read_autosave,
+        commands::project_clear_autosave,
+        commands::project_save_as,
+        commands::project_open_file,
+        commands::file_save,
+        commands::file_reveal,
+        commands::app_open_external,
+        commands::app_info,
+        commands::window_overlay_theme,
+        commands::net_fetch_text,
+        commands::db_area,
+        commands::db_sql,
+        commands::db_pick_zip,
+        commands::ws_get,
+        commands::ws_put,
+        commands::ws_delete_prefix,
+        commands::ws_stats,
+        commands::pack_pick,
+        commands::pack_write,
+        commands::ruas_pack_status,
+        commands::ruas_pack_tile,
+        commands::ruas_pack_import,
+        commands::ruas_pack_export,
+        commands::ruas_pack_download,
+        commands::ruas_pack_cancel,
+    ]);
     // Janela criada em código (URL explícita no servidor embutido), em vez
     // de `tauri.conf.json > app > windows`: a URL inicial seria `file://`
     // quando o embed do Tauri não se aplica — aqui o destino é determinístico.

@@ -2,6 +2,8 @@
 
 Console desktop para operação de redes, postes e ativos elétricos da Neoenergia PE, construído a partir do mapa original `BASE-NEOENERGIA.html`.
 
+A versão 3 une o NeoGrid ao CTWeb: o módulo **Projeto** (edição do desenho, arruamento, anotações) e o **Pacote de Projeto** rodam dentro do app. Veja a seção "Módulo Projeto".
+
 O NeoGrid é um aplicativo **desktop** (Tauri 2 + Rust), não um site. Ele não precisa de servidor, publica nada na internet e processa os CSVs localmente. A interface foi organizada como um workspace profissional: mapa operacional, explorador de dados, exportações e configurações.
 
 Os dados importados ficam persistentes no programa: o NeoGrid salva automaticamente um snapshot local em `%APPDATA%\br.com.neogrid.desktop\projects\autosave.neogrid`. O snapshot usa dicionário por coluna + gzip; em uma base de teste com 2.303 registros, 199,6 KB de JSON viraram aproximadamente 34 KB em disco (83% menor). Também é possível exportar e abrir projetos portáteis `.neogrid`.
@@ -15,7 +17,7 @@ Os dados importados ficam persistentes no programa: o NeoGrid salva automaticame
 ### Desenvolvimento
 
 ```powershell
-npm install     # só na primeira vez (Electron legado + ferramentas)
+npm install     # só na primeira vez (CLI do Tauri, usada para o instalador)
 npm start
 ```
 
@@ -27,6 +29,7 @@ serve o frontend direto de `src/`, então editar HTML/CSS/JS e recarregar
 npm run app:release-run   # roda o release (frontend embutido)
 npm run core:test         # testes do núcleo Rust
 npm run core:parity       # audita adapter x commands x ACL
+npm run e2e:projeto -- --port 9222 --db <base.sqlite> --out <pasta>   # módulo Projeto no app real
 ```
 
 ### Instalador para Windows
@@ -39,7 +42,7 @@ npm run app:install       # compila e instala por cima (por usuário, sem admin)
 Saída:
 
 ```
-rust/target/x86_64-pc-windows-gnu/release/bundle/nsis/NeoGrid_2.0.0_x64-setup.exe
+rust/target/x86_64-pc-windows-gnu/release/bundle/nsis/NeoGrid_3.0.0_x64-setup.exe
 ```
 
 O instalador tem ~7 MB, instala **por usuário** (sem admin) em
@@ -56,33 +59,67 @@ nenhum servidor.
 
 - Rust (toolchain `x86_64-pc-windows-gnu`) + [w64devkit](https://github.com/skeeto/w64devkit)
   para o linker (com MSVC Build Tools instalado, o alvo `msvc` dispensa o
-  w64devkit e o workaround de `resource.lib`).
-- NSIS para gerar o instalador (`C:\Users\ORION\nsis\nsis-3.11` por padrão;
-  ajuste em `rust/scripts/build-app.ps1 -Nsis`).
+  w64devkit e o workaround de `resource.lib`). Nada exige administrador.
+- NSIS para gerar o instalador.
+- Os caminhos são resolvidos por `rust/scripts/env.ps1`: variáveis
+  `NEOGRID_W64DEVKIT`, `NEOGRID_NSIS` e `NEOGRID_NODE` ou, por padrão,
+  `%LOCALAPPDATA%\neogrid-tools\{w64devkit,nsis,node}`.
 - O script de build já trata o caso sem MSVC: converte `resource.lib` com
   `windres` e repete o link.
 
-### Electron (legado)
-
-O shell Electron anterior continua no repositório como referência e fallback:
-
-```powershell
-npm run legacy:start      # abre a versão Electron
-npm run legacy:package    # versão portátil antiga (release/NeoGrid-win32-x64)
-```
-
-Detalhes da migração, paridade e pendências: `rust/PARITY.md`,
-`rust/TAURI.md` e `rust/CUTOVER.md`.
+O shell Electron foi removido na versão 3. O histórico da migração para o Tauri
+está em `rust/PARITY.md`, `rust/TAURI.md` e `rust/CUTOVER.md`.
 
 ---
 
 ## 2. Funcionalidades
 
+### Módulo Projeto
+
+Abra pelo item **Projeto** da barra lateral. O painel fica ao lado do mapa, sem cobri-lo.
+
+1. **Área**: retângulo ou polígono desenhado no mapa. Vale para a base SQLite e para CSVs em memória.
+2. **Edição**: mover, girar e editar textos, blocos e linhas; anotações; organizar (alinhar, distribuir, girar); **Anotar poste** (instalar, reaplicar, remover); localizar e substituir; desfazer e refazer. Nada altera a base.
+3. **Ruas**: pistas com largura real a partir do OpenStreetMap, ajustadas ao redor dos postes, com ajuste fino de eixo, bordas e vértices. O cálculo roda em segundo plano, sem travar a janela.
+4. **Entregar**: gera de uma vez, em `.zip` ou pasta:
+   - DXF do projeto com as edições;
+   - prancha PDF **vetorial** de A4 a A0 com carimbo, norte e barra de escala, em várias folhas quando a área não cabe na escala (ou ajustada a uma folha);
+   - quantitativo da rede existente **mais os serviços anotados** (instalar, reaplicar, remover);
+   - dados da área em CSV por camada, GeoJSON, arquivo do projeto (`.neogrid-projeto.json`) e `LEIA-ME.txt`.
+
+   Nas opções recolhidas ficam o DXF R2000 (MTEXT, tipos de linha, blocos com atributos), o quantitativo e o GeoJSON avulsos.
+
+Durante a criação do projeto, um painel mostra cada etapa, o tempo e o servidor em uso, com **Cancelar** e **Continuar sem arruamento**. Projetos `.ctweb.json` do CTWeb também abrem.
+
+### Pacote de ruas offline
+
+Um único arquivo `.neogrid-ruas` com as vias de Pernambuco em ladrilhos: rodovias, ruas, estradas vicinais e rurais, vias de serviço e caminhos, conforme mapeados no OpenStreetMap. Com ele, as áreas abrem sem internet e sem depender dos servidores públicos.
+
+Em **Exportações → Pacote de ruas offline**: baixar e gerar (extrato do Nordeste no Geofabrik, ~445 MB), **importar** um arquivo recebido de um colega ou um `.osm.pbf`, e **exportar para compartilhar**. Fora do app: `neogrid-ruas <extrato.osm.pbf> <saida.neogrid-ruas> [data]`.
+
+Dados de vias © colaboradores do OpenStreetMap, licença ODbL.
+
+### Configuração única
+
+Estilos, regras, blocos e rótulos, inclusive os do KML, ficam em um só lugar (**Estilos**, na barra lateral) e valem para o **mapa inteiro**, para o projeto e para o DXF. Fonte, tamanho, cor, contorno, balão e posição dos rótulos aparecem no mapa, e o projeto aberto se refaz ao mudar um estilo.
+
+As camadas se ligam e desligam pela legenda do mapa, que fica sempre à vista, pelo painel de camadas e pelo painel do Projeto. No Projeto, desligar uma camada também a tira do DXF, da prancha e do quantitativo. Na primeira abertura, blocos, regras e rótulos configurados em versões anteriores são convertidos.
+
+As edições, estilos e ruas ficam em `workspace.sqlite`, na pasta de dados do app, separado da base: gerar a base do mês seguinte não apaga o trabalho.
+
+### Consultar
+
+Filtro por expressão (mesma linguagem dos rótulos) em qualquer camada, e **SQL somente leitura** na base. As visões `v_poste`, `v_inst`, `v_bt` e `v_mt` já devolvem os valores por extenso e o WKT. Limites: um comando por vez, 60 segundos e 20.000 linhas.
+
+### Regionais e limites
+
+Ao gerar a base, as pastas abaixo da origem viram a coluna `REGIONAL`. A base pode vir de uma **pasta ou de um `.zip`**. No painel de camadas dá para escolher quais regionais aparecem no mapa e entram nas áreas. O painel também traz os limites de Pernambuco e a busca de município (dados do IBGE embutidos), e a barra do mapa ganhou a **medição de distâncias**.
+
 ### Mapa operacional
 - Renderização em canvas, somente da área visível, com suporte a bases extensas.
 - Camadas de **postes**, **rede BT**, **rede MT** e **instalações**.
 - Fundos: satélite Esri, ruas Esri, CARTO escuro, CARTO Voyager, OpenStreetMap e sem fundo.
-- **Arruamento do OpenStreetMap** carregado sob demanda e desenhado como camada própria, separado do DXF.
+- **Ruas guardadas** como camada de consulta: mostra o que está no pacote de ruas ou já foi baixado, sem acessar a internet.
 - **KML** com pontos, linhas, áreas e nomes, com escolha do que aparece e navegação até o arquivo.
 - Rótulos com desvio de colisão, priorização e exibição a partir do zoom configurado.
 - Construtor de rótulos por camada: escolha os campos de postes, instalações, BT e MT sem digitar modelos; a mesma configuração vale para o mapa e o DXF.
@@ -126,13 +163,12 @@ Limitações do modo banco: o CSV exporta a página atual (para áreas maiores, 
 - A opção **Limpar base de dados** remove a memória e o snapshot automático; os CSVs originais permanecem intactos.
 
 ### Exportações
-- **DXF** por área selecionada ou pela área visível, em UTM/SIRGAS 2000.
+- **DXF** pelo módulo Projeto, em UTM/SIRGAS 2000.
 - Camadas DXF organizadas: `POSTES`, `INSTALACOES`, `REDE_BT`, `REDE_MT`, textos, arruamento e KML (`KML_PONTOS`, `KML_LINHAS`, `KML_AREAS`, `TXT_KML`).
 - Desenho configurável: blocos por tipo de poste e de instalação, formas de fallback, cores ACI por camada e rótulos montados com colunas do CSV. O mapa e o DXF usam a mesma configuração.
 - **Ponto de inserção dos blocos**: ponta inferior (padrão do poste), centro, topo, laterais ou o ponto base do próprio bloco. Assim a ponta do poste cai na coordenada do CSV, como no mapa, em vez de o eixo ficar no centro do símbolo.
 - **Cor dos blocos**: preto/branco ACI 7 por padrão (o padrão do CAD), com opção de escolher outra cor por tipo ou manter as cores internas do DXF. As cores internas podem ser uniformizadas para BYBLOCK.
 - **Regras de blocos por atributos**: uma ou mais condições com `E`/`OU`, operadores de texto e número, ordem de prioridade e contagem de registros que combinam. A primeira regra que combinar escolhe o bloco; por tipo e o bloco padrão ficam como fallback.
-- **Arruamento separado**: baixe as vias pelo mapa em **Arruamento**, confira no mapa e marque “Incluir arruamento carregado” na hora do DXF. A exportação não consulta o OpenStreetMap sozinha.
 - **KML**: importe arquivos, veja pontos/linhas/áreas, escolha o que exibir e inclua os elementos visíveis no DXF.
 - **Configuração de blocos portátil**: exporte blocos, regras, cores e rótulos para um `.json` e importe em outra máquina pelo botão **Importar…** do desenho.
 - **CSV** por camada, completo (um arquivo por camada).
@@ -196,7 +232,6 @@ Colunas extras são preservadas e aparecem no detalhe do ativo. Campos terminado
 | `1` … `3` | Mapa, exportações, configurações |
 | `F` | Ir à concentração de dados |
 | `S` | Voltar à escala configurada (padrão 1:1000) |
-| `D` | Exportar DXF |
 | `+` / `-` | Zoom do mapa |
 | `Esc` | Fechar busca/painéis e limpar seleção |
 
@@ -213,7 +248,7 @@ rust/                        aplicativo oficial (Tauri 2 + Rust)
     src/serve.rs             serve `src/` embutido em localhost:<porta efêmera> (ou do disco em dev)
     build.rs                 manifesto ACL dos commands
   parity/                    harness de paridade, E2E via CDP e auditoria de contrato
-  scripts/                   build-app.ps1, run-app.ps1, fix-tauri-res.ps1
+  scripts/                   env.ps1, build-app.ps1, run-app.ps1, fix-tauri-res.ps1
 src/
   index.html                 shell da aplicação
   css/
@@ -239,21 +274,19 @@ src/
       csv-export.js          geração e salvamento de CSV
       import-controller.js   orquestração da importação
       workers/csv-worker.js  leitura streaming com PapaParse
+    projeto/                 motor do módulo Projeto (scripts clássicos, carregados no primeiro uso)
+      00..03                 expressões, DXF, Clipper, geometria das ruas
+      10..17                 configuração, estilos, seleção, consulta, limites, arruamento, projeto
+      18-pacote.js           Pacote de Projeto e prancha PDF vetorial
+      19-integracao.js       eventos do mapa e painéis
     modules/
+      projeto/index.js       ponte entre o NeoGrid e o motor (`window.NG`)
       map/                   Leaflet, canvas, basemaps, inspetor
       views/                 exportações, configurações
       dxf/                   UTM, geração DXF, UI de seleção e configuração do desenho
       print.js               compositor e prancha de impressão
     ui/                      toasts, confirmação, diálogos, ficha, construtor de rótulos
   vendor/                    Leaflet, PapaParse, Inter, @tauri-apps/api e licenças
-electron/                    shell legado (referência/fallback)
-  main.js                    protocolo app://, IPC, janela
-  preload.js                 API segura exposta ao renderer
-  database.js                base SQLite externa (consultas por área, paginação, busca)
-  screenshot-mode.js         automação de QA visual (não usada em produção)
-scripts/
-  package.js                 empacotador portátil do Electron (legado)
-  build-sqlite.js            conversor CSV → SQLite em Node (referência de paridade)
 build/                       ícones do aplicativo
 ```
 
@@ -273,7 +306,7 @@ build/                       ícones do aplicativo
 - O snapshot local é limitado a 700 mil registros. Acima disso o salvamento automático é pausado para evitar travamento; importe uma parte menor para persistir.
 - A renderização vetorial usa um canvas único; bases com milhões de elementos devem ser operadas com zoom próximo.
 - Fundos de mapa, busca de endereços e arruamento dependem de internet. O modo **Sem fundo** funciona offline.
-- O arruamento é limitado a áreas de até 60 km² por consulta (o Overpass fica lento e pode expirar em áreas maiores). O KML e o arruamento carregados são salvos no navegador/armazenamento local; arquivos muito grandes continuam válidos para a sessão, mas podem não ser persistidos.
+- Sem o pacote de ruas, o primeiro download de cada área depende dos servidores públicos e pode levar minutos. Eles também podem estar fora do ar. O KML e o arruamento carregados são salvos no navegador/armazenamento local; arquivos muito grandes continuam válidos para a sessão, mas podem não ser persistidos.
 
 ---
 
@@ -297,6 +330,7 @@ build/                       ícones do aplicativo
 - [Leaflet](https://leafletjs.com/) — BSD-2-Clause
 - [PapaParse](https://www.papaparse.com/) — MIT
 - [Inter](https://rsms.me/inter/) — SIL Open Font License 1.1
+- [Clipper](http://www.angusj.com/clipper2/) (porte JavaScript, usado no arruamento) — Boost Software License
 - [@tauri-apps/api](https://www.npmjs.com/package/@tauri-apps/api) — MIT (vendorizado em `src/vendor/tauri/`)
 
 As licenças dos componentes estão incluídas em `src/vendor/` e nos `Cargo.toml`
@@ -305,11 +339,9 @@ do workspace `rust/`.
 O arquivo `BASE-NEOENERGIA.html` permanece no repositório como referência da versão original.
 
 > **Distribuição no Windows:** use o instalador
-> `NeoGrid_2.0.0_x64-setup.exe` (por usuário, sem admin). Ele instala o
+> `NeoGrid_3.0.0_x64-setup.exe` (por usuário, sem admin). Ele instala o
 > executável e o `WebView2Loader.dll` juntos; copiar somente o `.exe` fora da
-> pasta de instalação não é suportado. O Electron (legado) continua exigindo a
-> pasta completa (`icudtl.dat`, DLLs, `resources`, `locales`) — copiar apenas
-> `NeoGrid.exe` causa “Invalid file descriptor to ICU data received”.
+> pasta de instalação não é suportado.
 
 ---
 
@@ -335,4 +367,4 @@ O arquivo [`screenshots/exemplo-prancha-a3.pdf`](screenshots/exemplo-prancha-a3.
 
 ---
 
-NeoGrid 2.0 · Console de redes · Neoenergia PE
+NeoGrid 3.0 · Console de redes · Neoenergia PE

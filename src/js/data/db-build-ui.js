@@ -179,6 +179,16 @@ export function initDbBuildDialog() {
     }
   });
 
+  document.querySelector('#dbBuildPickZip')?.addEventListener('click', async () => {
+    const result = await window.desktop?.dbPickZip?.();
+    if (result?.cancelled) return;
+    if (els.source) els.source.value = result.path || '';
+    if (result?.path && !els.output?.value) {
+      const month = new Date().toISOString().slice(0, 7).replace('-', '');
+      els.output.value = `${result.path.replace(/\.zip$/i, '')}_${month}.sqlite`;
+    }
+  });
+
   document.querySelector('#dbBuildPickOutput')?.addEventListener('click', async () => {
     const month = new Date().toISOString().slice(0, 7).replace('-', '');
     const result = await window.desktop?.dbPickOutput?.(`neogrid_base_${month}.sqlite`);

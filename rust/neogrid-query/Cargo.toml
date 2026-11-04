@@ -13,7 +13,7 @@ name = "neogrid-query-parity"
 path = "src/bin/parity.rs"
 
 [dependencies]
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "functions", "hooks"] }
 flate2 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
