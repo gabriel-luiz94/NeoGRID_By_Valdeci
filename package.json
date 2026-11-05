@@ -17,7 +17,10 @@
     "core:test": "cd rust && cargo test --target x86_64-pc-windows-gnu --workspace",
     "core:build": "cd rust && cargo build --release --target x86_64-pc-windows-gnu --workspace",
     "core:parity": "node rust/parity/contract-check.js",
-    "e2e:projeto": "node rust/parity/e2e-projeto.js"
+    "e2e:projeto": "node rust/parity/e2e-projeto.js",
+    "test:coord": "node rust/parity/coord-teste.mjs",
+    "e2e:busca": "node rust/parity/e2e-busca.js",
+    "e2e:print": "node rust/parity/e2e-print.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.7.0"

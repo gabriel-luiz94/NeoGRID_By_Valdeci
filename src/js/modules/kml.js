@@ -1,6 +1,7 @@
 import { bus } from '../core/bus.js';
 import { esc, fmtInt } from '../core/format.js';
 import { icon, openDialog } from '../core/dom.js';
+import { settings } from '../core/settings.js';
 import { toast } from '../ui/toast.js';
 
 const STORAGE_KEY = 'neogrid.kml.v1';
@@ -269,6 +270,7 @@ function save() {
       files: state.files,
       options: state.options,
       fitOnImport: state.fitOnImport,
+      oculto: Boolean(state.oculto),
     }));
   } catch {
     if (!state.storageWarned) {
@@ -290,6 +292,7 @@ function load() {
     state.files = raw.files.filter((file) => Array.isArray(file.features));
     state.options = { ...DEFAULT_OPTIONS, ...(raw.options || {}) };
     state.fitOnImport = raw.fitOnImport !== false;
+    state.oculto = Boolean(raw.oculto);
     sequence = state.files.length;
   } catch {
     /* sem armazenamento */
@@ -326,7 +329,7 @@ function featureColor(feature, kind, fallback) {
 
 function addLabel(leafletLayer, name, className = 'kml-label') {
   const estilo = window.ngMapa?.kml();
-  if (!(estilo ? estilo.rotulos : state.options.showLabels) || !name) return;
+  if (!settings.labels || !(estilo ? estilo.rotulos : state.options.showLabels) || !name) return;
   leafletLayer.bindTooltip(esc(name), {
     permanent: true,
     direction: 'center',
@@ -492,6 +495,7 @@ async function importFiles(fileList) {
     updateImportStatus();
     return;
   }
+  state.oculto = false; // quem acabou de importar quer ver o arquivo
   save();
   render();
   renderFiles();
@@ -702,6 +706,9 @@ export function initKml(options = {}) {
   });
   bus.on('kml:open', () => openKmlDialog());
   bus.on('estilos:changed', () => { if (state.files.length) render(); });
+  bus.on('settings:changed', ({ key }) => {
+    if ((key === 'labels' || key === 'all') && state.files.length) render();
+  });
   document.querySelector('#kmlEstilos')?.addEventListener('click', () => {
     els.dialog?.close?.();
     bus.emit('labels:open', 'kmlp');
@@ -769,7 +776,12 @@ export function getKmlExportData() {
 /** Liga ou desliga o KML inteiro no mapa, a partir das camadas do Projeto. */
 export function setKmlVisible(visivel) {
   state.oculto = !visivel;
+  save();
   render();
+}
+
+export function kmlVisivel() {
+  return !state.oculto;
 }
 
 export function hasKmlData() {

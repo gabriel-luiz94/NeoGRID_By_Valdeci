@@ -16,6 +16,8 @@ import {
 
 const MIN_ZOOM = 15;
 const PAD = 0.25;
+const PRINT_PAD = 0.02;
+const DB_ROW_LIMIT = 20000;   // teto por camada de `db:viewport` (neogrid-query)
 const RAD = Math.PI / 180;
 const LINE_HEIGHT = 12;
 const FONT = '600 11px "Inter Variable", "Segoe UI", system-ui, sans-serif';
@@ -46,6 +48,10 @@ export class MapRenderer {
     this.dbBusy = false;
     this.dbQueued = false;
     this.dbGeneration = 0;
+    this.dbJob = null;
+    this.printMode = null;
+    this.rotulosOmitidos = 0;
+    this.rotulosZoom = 0;
     this.projectionScale = 1;
     this.originX = 0;
     this.originY = 0;
@@ -73,7 +79,8 @@ export class MapRenderer {
       this.canvas.style.visibility = 'hidden';
     };
     this._onZoomEnd = () => {
-      this.canvas.style.visibility = 'visible';
+      // Com a base, o quadro antigo fica oculto até os dados do novo zoom chegarem.
+      if (!library.isDatabase()) this.canvas.style.visibility = 'visible';
       this.schedule();
     };
     map.on('zoomstart', this._onZoomStart);
@@ -88,6 +95,35 @@ export class MapRenderer {
   setSelected(selection) {
     this.selection = selection;
     this.schedule();
+  }
+
+  /** Impressão: sem limites adaptativos e só a área da folha. `todos` inclui sobrepostos e ocultos pelo zoom. */
+  setPrintMode(mode) {
+    this.printMode = mode || null;
+  }
+
+  get pendente() {
+    return Boolean(this.frame || this.dbBusy);
+  }
+
+  /** Desenha e só resolve quando o quadro da vista atual estiver completo na tela. */
+  async renderComplete() {
+    for (let tentativa = 0; tentativa < 6; tentativa++) {
+      if (this.frame) {
+        cancelAnimationFrame(this.frame);
+        this.frame = 0;
+      }
+      await this.render();
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      if (!this.pendente) break;
+    }
+    return this.lastStats;
+  }
+
+  ocultoPorZoom(lines, zoom) {
+    if (!lines.est || zoom >= lines.est.minZ || this.printMode?.todos) return false;
+    this.rotulosZoom += 1;
+    return true;
   }
 
   refreshAccent() {
@@ -371,10 +407,11 @@ export class MapRenderer {
       boxes.push([x, y - height / 2, x + width, y + height / 2]);
     }
 
-    if (!est || est.colisao !== false) {
+    if ((!est || est.colisao !== false) && !this.printMode?.todos) {
       for (const box of boxes) {
         if (!this.isFree(box[0], box[1], box[2], box[3])) {
           context.font = fonteBase;
+          this.rotulosOmitidos += 1;
           return;
         }
       }
@@ -419,7 +456,7 @@ export class MapRenderer {
 
   visibleIndexes(capValue) {
     const active = this.getVisibleLayers();
-    const bounds = this.map.getBounds().pad(PAD * 1.1);
+    const bounds = this.queryBounds();
     const west = bounds.getWest();
     const east = bounds.getEast();
     const south = bounds.getSouth();
@@ -429,7 +466,7 @@ export class MapRenderer {
     const y0 = Math.floor(south * 100) - 1;
     const y1 = Math.floor(north * 100) + 1;
     const cap = Math.max(1000, Number(capValue) || 12000);
-    const result = { poste: [], bt: [], mt: [], inst: [], truncated: false };
+    const result = { poste: [], bt: [], mt: [], inst: [], truncated: false, cortadas: [] };
 
     for (const type of ['poste', 'bt', 'mt', 'inst']) {
       const store = library.get(type);
@@ -515,19 +552,21 @@ export class MapRenderer {
     }
   }
 
-  render() {
-    const started = performance.now();
-    const frame = this.beginFrame(started);
-    if (!frame) return;
-    if (library.isDatabase()) {
-      this.renderDatabase(frame);
-      return;
-    }
-    const visible = this.visibleIndexes(frame.elementCap);
-    this.drawVisible(visible, frame);
+  /** Área consultada: na tela, com folga para arrastar; na impressão, só a folha. */
+  queryBounds() {
+    return this.map.getBounds().pad(this.printMode ? PRINT_PAD : PAD * 1.1);
   }
 
-  beginFrame(started) {
+  render() {
+    if (library.isDatabase()) return this.renderDatabase();
+    const frame = this.readFrame(performance.now());
+    if (!frame || !this.applyFrame(frame)) return undefined;
+    this.drawVisible(this.visibleIndexes(frame.elementCap), frame);
+    return undefined;
+  }
+
+  /** Lê o estado da vista sem tocar no canvas. */
+  readFrame(started) {
     const size = this.map.getSize();
     if (!size.x || !size.y) return null;
 
@@ -537,7 +576,8 @@ export class MapRenderer {
     this.syncDataRevision();
     const dxf = this.dxfSettings;
     const zoom = this.map.getZoom();
-    const adaptive = settings.adaptive !== false;
+    const printing = Boolean(this.printMode);
+    const adaptive = !printing && settings.adaptive !== false;
     let dpr = Number(settings.dpr) || 0;
     if (dpr <= 0) dpr = Math.min(window.devicePixelRatio || 1, adaptive ? 1.5 : 2);
     if (adaptive) dpr = Math.min(dpr, 1.5);
@@ -546,14 +586,40 @@ export class MapRenderer {
       dpr = Math.max(1, Math.min(2, Math.sqrt(9e7 / (size.x * size.y))));
     }
     const capSetting = Math.max(1000, Number(settings.maxElements) || 12000);
-    const elementCap = adaptive ? Math.min(capSetting, 12000) : capSetting;
+    const elementCap = printing
+      ? (library.isDatabase() ? DB_ROW_LIMIT : Infinity)
+      : (adaptive ? Math.min(capSetting, 12000) : capSetting);
     const labelCapSetting = Math.max(0, Number(settings.maxLabels) || 2000);
-    const labelCap = adaptive ? Math.min(labelCapSetting, 1200) : labelCapSetting;
+    const labelCap = printing ? Infinity : (adaptive ? Math.min(labelCapSetting, 1200) : labelCapSetting);
+    const margem = printing ? 0 : PAD;
+    const padX = Math.round(size.x * margem);
+    const padY = Math.round(size.y * margem);
 
-    this.padX = Math.round(size.x * PAD);
-    this.padY = Math.round(size.y * PAD);
-    const width = size.x + 2 * this.padX;
-    const height = size.y + 2 * this.padY;
+    return {
+      settings,
+      dxf,
+      zoom,
+      adaptive,
+      elementCap,
+      labelCap,
+      hasData: library.hasData(),
+      started,
+      printing,
+      dpr,
+      sizeX: size.x,
+      sizeY: size.y,
+      padX,
+      padY,
+      width: size.x + 2 * padX,
+      height: size.y + 2 * padY,
+    };
+  }
+
+  /** Limpa o canvas para o quadro. Devolve false quando o zoom não comporta os dados. */
+  applyFrame(frame) {
+    const { dpr, width, height } = frame;
+    this.padX = frame.padX;
+    this.padY = frame.padY;
 
     if (this.canvas.width !== Math.round(width * dpr) || this.canvas.height !== Math.round(height * dpr)) {
       this.canvas.width = Math.round(width * dpr);
@@ -570,24 +636,34 @@ export class MapRenderer {
     this.occupancy = new Map();
     this.labelCount = 0;
     this.labelAttempts = 0;
+    this.rotulosOmitidos = 0;
+    this.rotulosZoom = 0;
 
-    const hasData = library.hasData();
-    if (zoom < MIN_ZOOM) {
+    if (frame.zoom < MIN_ZOOM) {
       this.lastStats = {
         visible: 0,
         labels: 0,
-        elapsed: performance.now() - started,
+        elapsed: performance.now() - frame.started,
         truncated: false,
         lowZoom: true,
-        hasData,
+        hasData: frame.hasData,
         reason: 'zoom',
       };
       this.onStats(this.lastStats);
-      return null;
+      return false;
     }
 
     this.updateProjection();
-    return { settings, dxf, zoom, adaptive, elementCap, labelCap, hasData, started };
+    return true;
+  }
+
+  /** O quadro lido antes da consulta já não serve para a vista atual? */
+  frameVencido(frame) {
+    const size = this.map.getSize();
+    return frame.zoom !== this.map.getZoom()
+      || frame.sizeX !== size.x
+      || frame.sizeY !== size.y
+      || frame.printing !== Boolean(this.printMode);
   }
 
   updateProjection() {
@@ -605,7 +681,7 @@ export class MapRenderer {
     const east = bounds.getEast();
     const south = bounds.getSouth();
     const north = bounds.getNorth();
-    const result = { poste: [], bt: [], mt: [], inst: [], truncated: false };
+    const result = { poste: [], bt: [], mt: [], inst: [], truncated: false, cortadas: [], falhas: [] };
     await Promise.all(['poste', 'bt', 'mt', 'inst'].map(async (type) => {
       const store = library.get(type);
       if (!store || !active[type]) return;
@@ -623,6 +699,7 @@ export class MapRenderer {
             for (const index of cell) {
               if (list.length >= elementCap) {
                 result.truncated = true;
+                result.cortadas.push(type);
                 break outer;
               }
               list.push(index);
@@ -635,6 +712,7 @@ export class MapRenderer {
       try {
         packets = await dbViewport(type, { west, east, south, north }, elementCap);
       } catch {
+        result.falhas.push(type);
         return;
       }
       store.cachePackets(packets);
@@ -650,35 +728,52 @@ export class MapRenderer {
         }
         list.push(rid);
       }
-      if (packets.length >= elementCap) result.truncated = true;
+      if (packets.length >= elementCap) {
+        result.truncated = true;
+        result.cortadas.push(type);
+      }
     }));
     return result;
   }
 
-  async renderDatabase(frame) {
+  renderDatabase() {
     if (this.dbBusy) {
       this.dbQueued = true;
-      return;
+      return this.dbJob;
     }
     this.dbBusy = true;
+    this.dbJob = this.runDatabase().finally(() => {
+      this.dbBusy = false;
+    });
+    return this.dbJob;
+  }
+
+  async runDatabase() {
     try {
       do {
         this.dbQueued = false;
         const generation = ++this.dbGeneration;
-        const bounds = this.map.getBounds().pad(PAD * 1.1);
-        const visible = await this.viewportFromDatabase(bounds, frame.elementCap);
+        // Lido a cada volta: um pedido na fila precisa do zoom e da folha de agora.
+        const frame = this.readFrame(performance.now());
+        if (!frame) return;
+        if (frame.zoom < MIN_ZOOM) {
+          this.applyFrame(frame);
+          continue;
+        }
+        const visible = await this.viewportFromDatabase(this.queryBounds(), frame.elementCap);
         if (generation !== this.dbGeneration) continue;
-        if (this.cacheRevision !== library.revision) continue;
-        this.updateProjection();
-        this.occupancy = new Map();
-        this.labelCount = 0;
-        this.labelAttempts = 0;
+        // Na impressão, um pedido na fila descarta este quadro: só o final importa.
+        if (this.cacheRevision !== library.revision || this.frameVencido(frame) || (frame.printing && this.dbQueued)) {
+          this.dbQueued = true;
+          continue;
+        }
+        // O canvas só é limpo agora, com os dados em mãos, e o tempo medido é só o do desenho.
+        frame.started = performance.now();
+        this.applyFrame(frame);
         this.drawVisible(visible, frame);
       } while (this.dbQueued);
     } catch {
       /* mantém o quadro anterior em caso de erro transitório */
-    } finally {
-      this.dbBusy = false;
     }
   }
 
@@ -854,7 +949,7 @@ export class MapRenderer {
           if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
           this.project(lon, lat);
           const lines = this.labelsFor('poste', store, index);
-          if (!lines.length || (lines.est && zoom < lines.est.minZ)) continue;
+          if (!lines.length || this.ocultoPorZoom(lines, zoom)) continue;
           const pos = this.posRotulo(lines.est, this.pixelX, this.pixelY, zoom >= 17 ? 9 : 6, 'right');
           this.label(lines, pos.x, pos.y, this.corRotulo(lines, aciHex(dxf.colors?.txtPoste, '#ffe08a')), pos.modo, 0, maxLabels);
         }
@@ -868,7 +963,7 @@ export class MapRenderer {
           const lat = store.Y[index];
           if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
           const lines = this.labelsFor('inst', store, index);
-          if (!lines.length || (lines.est && zoom < lines.est.minZ)) continue;
+          if (!lines.length || this.ocultoPorZoom(lines, zoom)) continue;
           this.project(lon, lat);
           const pos = lines.est ? this.posRotulo(lines.est, this.pixelX, this.pixelY) : { x: this.pixelX - 11, y: this.pixelY - 2, modo: 'left' };
           this.label(lines, pos.x, pos.y, this.corRotulo(lines, aciHex(dxf.colors?.txtInst, '#f1f5f9')), pos.modo, 0, maxLabels);
@@ -902,7 +997,7 @@ export class MapRenderer {
           else if (angle < -Math.PI / 2) angle += Math.PI;
           const linhas = this.labelsFor(type, store, index);
           const text = linhas.join(' · ');
-          if (!text || (linhas.est && zoom < linhas.est.minZ)) continue;
+          if (!text || this.ocultoPorZoom(linhas, zoom)) continue;
           candidates.push({
             length,
             text,
@@ -933,6 +1028,10 @@ export class MapRenderer {
       labels: this.labelCount,
       elapsed,
       truncated: visible.truncated,
+      cortadas: visible.cortadas || [],
+      falhas: visible.falhas || [],
+      rotulosOmitidos: this.rotulosOmitidos,
+      rotulosZoom: this.rotulosZoom,
       lowZoom: false,
       hasData,
       reason: !total && hasData ? 'empty-area' : visible.truncated ? 'truncated' : '',

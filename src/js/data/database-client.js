@@ -20,6 +20,7 @@ export const dbBounds = (type) => call('db:bounds', { type });
 export const dbHotspots = (type, limit) => call('db:hotspots', { type, limit });
 export const dbIdsInBounds = (type, bounds, limit) => call('db:ids-in-bounds', { type, ...bounds, limit });
 export const dbSearch = (type, term, limit) => call('db:search', { type, term, limit });
+export const dbSearchFields = (term, limit) => call('db:search-fields', { term, limit });
 export const dbFindById = (type, id) => call('db:find-by-id', { type, id });
 export const dbPage = (payload) => call('db:page', payload);
 export const dbDistinct = (type, field, limit) => call('db:distinct', { type, field, limit });

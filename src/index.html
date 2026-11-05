@@ -205,7 +205,7 @@
 
         <div class="topbar-search" id="searchWrap">
           <svg class="icon search-icon"><use href="#i-search"/></svg>
-          <input id="globalSearch" type="search" placeholder="Buscar poste, instalação, endereço ou coordenada…" autocomplete="off" spellcheck="false" aria-label="Buscar ativos e endereços">
+          <input id="globalSearch" type="search" placeholder="Buscar poste, barramento, endereço ou coordenada…" autocomplete="off" spellcheck="false" aria-label="Buscar ativos e endereços">
           <kbd class="search-kbd">Ctrl K</kbd>
           <div class="search-results" id="searchResults" hidden></div>
         </div>
@@ -447,11 +447,15 @@
               </div>
 
               <div class="map-legend" id="mapLegend">
-                <span class="legend-title">Legenda</span>
-                <button class="legend-item" type="button" data-camada="poste" title="Mostrar ou ocultar"><i style="--c: var(--layer-poste)"></i>Postes</button>
-                <button class="legend-item" type="button" data-camada="bt" title="Mostrar ou ocultar"><i style="--c: var(--layer-bt)"></i>Rede BT</button>
-                <button class="legend-item" type="button" data-camada="mt" title="Mostrar ou ocultar"><i style="--c: var(--layer-mt)"></i>Rede MT</button>
-                <button class="legend-item" type="button" data-camada="inst" title="Mostrar ou ocultar"><i style="--c: var(--layer-inst)"></i>Instalações</button>
+                <span class="legend-title">Camadas</span>
+                <label class="legend-item" data-camada="poste" title="Mostrar ou ocultar os postes"><input type="checkbox" checked><i style="--c: var(--layer-poste)"></i>Postes</label>
+                <label class="legend-item" data-camada="bt" title="Mostrar ou ocultar a rede BT"><input type="checkbox" checked><i style="--c: var(--layer-bt)"></i>Rede BT</label>
+                <label class="legend-item" data-camada="mt" title="Mostrar ou ocultar a rede MT"><input type="checkbox" checked><i style="--c: var(--layer-mt)"></i>Rede MT</label>
+                <label class="legend-item" data-camada="inst" title="Mostrar ou ocultar as instalações"><input type="checkbox" checked><i style="--c: var(--layer-inst)"></i>Instalações</label>
+                <span class="legend-sep"></span>
+                <label class="legend-item" data-extra="ruas" title="Liga ou desliga o arruamento (ruas guardadas no mapa e inclusão no DXF)"><input type="checkbox"><i style="--c: #ff9f1c"></i>Arruamento</label>
+                <label class="legend-item" data-extra="kml" title="Mostrar ou ocultar o KML. Sem KML carregado, abre a importação"><input type="checkbox"><i style="--c: #38bdf8"></i>KML</label>
+                <label class="legend-item" data-extra="rotulos" title="Mostrar ou ocultar os rótulos do mapa"><input type="checkbox" checked>Rótulos</label>
               </div>
 
               <div class="map-scale-control" id="mapScaleControl">
@@ -781,6 +785,8 @@
       <datalist id="printScaleList"><option value="200"><option value="500"><option value="1000"><option value="2000"><option value="2500"><option value="5000"><option value="10000"></datalist>
       <label class="field"><span>Título da prancha</span><input class="input" id="printTitleInput" value="Mapa de redes e ativos" maxlength="80"></label>
       <label class="check-row"><input type="checkbox" id="printLegend" checked><span>Incluir legenda no rodapé</span></label>
+      <label class="check-row"><input type="checkbox" id="printAllLabels"><span>Imprimir todos os rótulos</span></label>
+      <p class="field-hint">Inclui os que se sobrepõem e os ocultos pelo zoom mínimo dos estilos. Em áreas densas, os textos podem ficar uns sobre os outros.</p>
       <div class="print-preview-info">
         <svg class="icon"><use href="#i-info"/></svg>
         <p id="printInfo">A área útil da folha está destacada no mapa. Mova e aproxime para enquadrar.</p>
@@ -1083,6 +1089,15 @@
 
   <!-- ── Print root ──────────────────────────────────────────────── -->
   <div class="print-root" id="printRoot" aria-hidden="true">
+    <div class="print-status" id="printStatus" role="status" aria-live="polite" hidden>
+      <strong id="printStatusTitle">Preparando a prancha</strong>
+      <p id="printStatusText"></p>
+      <progress id="printStatusBar" max="1"></progress>
+      <div class="print-status-actions">
+        <button class="btn" type="button" id="printStatusCancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="printStatusGo" hidden>Imprimir assim</button>
+      </div>
+    </div>
     <div class="print-sheet" id="printSheetRoot">
       <div class="print-map-slot" id="printMapSlot"></div>
       <header class="print-header">

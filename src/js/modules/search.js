@@ -2,7 +2,7 @@ import { library } from '../data/library.js';
 import { LAYER_META } from '../data/schema.js';
 
 import { icon } from '../core/dom.js';
-import { esc, parseCoordinateQuery } from '../core/format.js';
+import { describeCoordinate, esc } from '../core/format.js';
 import { toast } from '../ui/toast.js';
 
 let deps = {};
@@ -12,8 +12,17 @@ let selectedIndex = -1;
 let loading = false;
 let timer = 0;
 let controller = null;
+let coordinateError = '';
+let addressFailed = false;
+let localBusy = false;
+let localPending = null;
+let localSeq = 0;
+let fieldTimer = 0;
 
-const isAddress = (item) => item.kind === 'address' || item.kind === 'coordinate';
+const NOME_CAMPO = { barramento: 'Barramento', placa: 'Placa' };
+
+// Códigos e coordenadas não saem do computador nas sugestões automáticas de endereço.
+const parecerCodigo = (query) => !/\s/.test(query) && /\d/.test(query);
 
 function hide() {
   if (!els.results) return;
@@ -50,15 +59,26 @@ function render() {
     hide();
     return;
   }
+  const groups = [];
+  if (coordinateError) groups.push(`<div class="search-empty">${esc(coordinateError)}</div>`);
+  const situacao = library.isDatabase() ? library.searchFields : null;
+  if (situacao?.estado === 'preparando') {
+    groups.push('<div class="search-loading"><span class="search-spinner"></span> Preparando a busca por barramento e placa. Só acontece na primeira abertura da base.</div>');
+  } else if (situacao?.estado === 'erro') {
+    groups.push(`<div class="search-empty">Busca por barramento e placa indisponível: ${esc(situacao.erro || 'erro desconhecido')}</div>`);
+  }
   if (!suggestions.length && !loading) {
     els.results.hidden = false;
-    els.results.innerHTML = `<div class="search-empty">Nenhum resultado.<br>Pressione <strong>Enter</strong> para buscar o endereço no OpenStreetMap.</div>`;
+    if (localBusy) groups.push('<div class="search-loading"><span class="search-spinner"></span> Buscando na base…</div>');
+    else if (addressFailed) groups.push('<div class="search-empty">Sugestões de endereço indisponíveis.<br>Pressione Enter para tentar a busca completa.</div>');
+    else if (!coordinateError) groups.push('<div class="search-empty">Nenhum resultado.<br>Pressione <strong>Enter</strong> para buscar o endereço no OpenStreetMap.</div>');
+    els.results.innerHTML = groups.join('');
     return;
   }
 
   const locals = suggestions.filter((item) => item.kind === 'local');
-  const addresses = suggestions.filter(isAddress);
-  const groups = [];
+  const coordinates = suggestions.filter((item) => item.kind === 'coordinate');
+  const addresses = suggestions.filter((item) => item.kind === 'address');
 
   if (locals.length) {
     groups.push(`<div class="search-group-label">Ativos na base</div>${locals.map((item, index) => {
@@ -72,11 +92,22 @@ function render() {
     }).join('')}`);
   }
 
+  if (coordinates.length) {
+    groups.push(`<div class="search-group-label">Coordenada</div>${coordinates.map((item) => {
+      const position = suggestions.indexOf(item);
+      return `<button class="search-result ${position === selectedIndex ? 'is-selected' : ''}" data-index="${position}" type="button">
+        <span class="search-result-icon">${icon('crosshair')}</span>
+        <span class="search-result-copy"><strong>${esc(item.label)}</strong><small>${esc(item.subtitle)}</small></span>
+        <span class="search-result-trailing">${icon('arrow-up-right')}</span>
+      </button>`;
+    }).join('')}`);
+  }
+
   if (addresses.length) {
     groups.push(`<div class="search-group-label">Endereços ${loading ? '<span class="search-spinner" style="display:inline-block;vertical-align:middle;margin-left:4px"></span>' : ''}</div>${addresses.map((item) => {
       const position = suggestions.indexOf(item);
       return `<button class="search-result ${position === selectedIndex ? 'is-selected' : ''}" data-index="${position}" type="button">
-        <span class="search-result-icon">${icon(item.kind === 'coordinate' ? 'crosshair' : 'pin')}</span>
+        <span class="search-result-icon">${icon('pin')}</span>
         <span class="search-result-copy"><strong>${esc(item.label)}</strong><small>${esc(item.subtitle || 'Endereço')}</small></span>
         <span class="search-result-trailing">${icon('arrow-up-right')}</span>
       </button>`;
@@ -165,106 +196,91 @@ async function suggest(query) {
   try {
     const addresses = await photonSearch(query);
     if (query !== els.search.value.trim()) return;
-    const coordinate = parseCoordinateQuery(query);
-    const coordinateItems = coordinate
-      ? [{
-          kind: 'coordinate',
-          label: `${coordinate[0].toFixed(6).replace('.', ',')}, ${coordinate[1].toFixed(6).replace('.', ',')}`,
-          subtitle: 'Coordenada geográfica · WGS 84',
-          lat: coordinate[0],
-          lon: coordinate[1],
-        }]
-      : [];
-    suggestions = [
-      ...(library.isDatabase() ? await allLocalAsync(query) : allLocal(query)),
-      ...coordinateItems,
-      ...addresses,
-    ];
+    addressFailed = false;
+    suggestions = [...suggestions.filter((item) => item.kind !== 'address'), ...addresses];
   } catch (error) {
-    if (error.name !== 'AbortError') {
-      // Mantém os resultados locais; endereços ficam indisponíveis silenciosamente.
-      const locals = library.isDatabase() ? [] : allLocal(query);
-      if (!locals.length && !parseCoordinateQuery(query)) {
-        els.results.innerHTML = '<div class="search-empty">Sugestões de endereço indisponíveis.<br>Pressione Enter para tentar a busca completa.</div>';
-        els.results.hidden = false;
-      }
-    }
+    // Mantém os resultados locais; só os endereços ficam indisponíveis.
+    if (error.name !== 'AbortError') addressFailed = true;
   } finally {
     loading = false;
     if (query === els.search.value.trim()) render();
   }
 }
 
+function localItem(item) {
+  const singular = LAYER_META[item.type].singular;
+  const origem = item.campo
+    ? `${NOME_CAMPO[item.campo] || item.campo} · ${singular}${item.codigo ? ` ${item.codigo}` : ''}`
+    : singular;
+  // O resumo do ativo pode repetir o valor procurado, que já é o título do resultado.
+  const resumo = String(item.subtitle || '').split(' · ').filter((parte) => parte && parte !== item.id);
+  return { kind: 'local', ...item, label: item.id, subtitle: [origem, ...resumo].join(' · ') };
+}
+
 function allLocal(query) {
-  const local = library.searchIds(query, 6);
-  return local.map((item) => ({
-    kind: 'local',
-    ...item,
-    label: item.id,
-    subtitle: [LAYER_META[item.type].singular, item.subtitle].filter(Boolean).join(' · '),
-  }));
+  return library.searchIds(query, 8).map(localItem);
 }
 
 async function allLocalAsync(query) {
   if (!library.isDatabase()) return allLocal(query);
-  const local = await library.searchIdsAsync(query, 6);
-  return local.map((item) => ({
-    kind: 'local',
-    ...item,
-    label: item.id,
-    subtitle: [LAYER_META[item.type].singular, item.subtitle].filter(Boolean).join(' · '),
-  }));
+  return (await library.searchIdsAsync(query, 8)).map(localItem);
+}
+
+function coordinateItems(query) {
+  const coordinate = describeCoordinate(query);
+  coordinateError = coordinate?.erro || '';
+  return coordinate && !coordinate.erro ? [{ kind: 'coordinate', ...coordinate }] : [];
 }
 
 function runInput() {
   const query = els.search.value.trim();
   clearTimeout(timer);
+  clearTimeout(fieldTimer);
   controller?.abort();
   loading = false;
+  localBusy = false;
+  localPending = null;
+  addressFailed = false;
+  coordinateError = '';
+  localSeq += 1;
   if (query.length < 3) {
     hide();
     return;
   }
-  const coordinate = parseCoordinateQuery(query);
-  if (library.isDatabase()) {
-    suggestions = coordinate ? [{
-      kind: 'coordinate',
-      label: `${coordinate[0].toFixed(6).replace('.', ',')}, ${coordinate[1].toFixed(6).replace('.', ',')}`,
-      subtitle: 'Coordenada geográfica · WGS 84',
-      lat: coordinate[0],
-      lon: coordinate[1],
-    }] : [];
-    selectedIndex = suggestions.length ? 0 : -1;
-    render();
-    if (suggestions.length) selectedIndex = -1;
-    timer = setTimeout(() => suggest(query), 360);
-    // Busca local no banco em paralelo (assíncrona).
-    allLocalAsync(query).then((locals) => {
-      if (query !== els.search.value.trim()) return;
+  const coordinates = coordinateItems(query);
+  const ehCoordenada = coordinates.length > 0 || Boolean(coordinateError);
+  const database = library.isDatabase();
+  suggestions = [...(database || ehCoordenada ? [] : allLocal(query)), ...coordinates];
+  selectedIndex = -1;
+  if (database && !ehCoordenada) {
+    const seq = localSeq;
+    localBusy = true;
+    localPending = allLocalAsync(query).then((locals) => {
+      if (seq !== localSeq) return;
       suggestions = [...locals, ...suggestions.filter((item) => item.kind !== 'local')];
-      if (query === els.search.value.trim()) render();
-    }).catch(() => {});
-    return;
+    }).catch(() => {}).finally(() => {
+      if (seq !== localSeq) return;
+      localBusy = false;
+      localPending = null;
+      render();
+      // Enquanto o índice é gerado, repete a busca para o resultado aparecer sozinho.
+      if (library.searchFields.estado === 'preparando') {
+        fieldTimer = setTimeout(() => {
+          if (!els.results.hidden && document.activeElement === els.search) runInput();
+        }, 3000);
+      }
+    });
   }
-  suggestions = [
-    ...allLocal(query),
-    ...(coordinate ? [{
-      kind: 'coordinate',
-      label: `${coordinate[0].toFixed(6).replace('.', ',')}, ${coordinate[1].toFixed(6).replace('.', ',')}`,
-      subtitle: 'Coordenada geográfica · WGS 84',
-      lat: coordinate[0],
-      lon: coordinate[1],
-    }] : []),
-  ];
-  selectedIndex = suggestions.length ? 0 : -1;
   render();
-  if (suggestions.length) selectedIndex = -1;
-  timer = setTimeout(() => suggest(query), 360);
+  if (!ehCoordenada && !parecerCodigo(query)) timer = setTimeout(() => suggest(query), 360);
 }
 
 async function enterSearch() {
   const query = els.search.value.trim();
   if (!query) return;
+  // A busca na base pode ainda estar em curso: sem esperá-la, um código iria para o serviço de endereços.
+  if (localPending) await localPending;
+  if (query !== els.search.value.trim()) return;
   if (suggestions.length && selectedIndex >= 0) {
     choose(suggestions[selectedIndex]);
     return;
@@ -273,9 +289,14 @@ async function enterSearch() {
     choose(suggestions[0]);
     return;
   }
-  const coordinate = parseCoordinateQuery(query);
-  if (coordinate) {
-    deps.mapView?.focusLatLng(coordinate[0], coordinate[1], 17);
+  // Coordenada inválida não vira busca de endereço: o aviso já está na lista.
+  if (coordinateError) {
+    render();
+    return;
+  }
+  // Com o índice ainda em preparo, o código pode existir: não vale procurá-lo como endereço.
+  if (parecerCodigo(query) && library.isDatabase() && library.searchFields.estado === 'preparando') {
+    render();
     return;
   }
 
@@ -360,7 +381,7 @@ function init(options = {}) {
     }
   });
 
-  window.__searchTest = { choose, suggestions: () => suggestions };
+  window.__searchTest = { choose, suggestions: () => suggestions, pendente: () => localPending };
 }
 
 export const search = { init, hide };

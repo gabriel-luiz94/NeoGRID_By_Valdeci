@@ -4,9 +4,16 @@ import { LayerStore } from './layer-store.js';
 import { SqliteStore } from './sqlite-store.js';
 import { featureSubtitle } from './labels.js';
 
+// Campos pesquisáveis além do identificador: [camada, nomes aceitos da coluna, rótulo].
+const CAMPOS_BUSCA = [
+  ['poste', ['DE_BARRAMENTO', 'DE_BARRAMEN'], 'barramento'],
+  ['inst', ['DE_PLACA'], 'placa'],
+];
+
 class Library {
   constructor() {
     this.stores = {};
+    this.searchFields = { estado: 'pronto', erro: null };
     this.revision = 0;
     this.importHistory = [];
     this.exportHistory = [];
@@ -217,6 +224,28 @@ class Library {
         if (results.length >= limit * 2) break;
       }
     }
+    // Sem base SQLite não há índice: os campos são percorridos nas linhas em memória.
+    const alvo = term.toUpperCase();
+    for (const [type, nomes, campo] of CAMPOS_BUSCA) {
+      const store = this.stores[type];
+      if (!store || !store.stats.count) continue;
+      const coluna = nomes.map((nome) => store.headers.indexOf(nome)).find((posicao) => posicao >= 0);
+      if (coluna === undefined) continue;
+      for (let index = 0; index < store.rows.length && results.length < limit * 4; index += 1) {
+        const valor = String(store.rows[index]?.[coluna] ?? '').trim();
+        if (!valor || !valor.toUpperCase().startsWith(alvo)) continue;
+        results.push({
+          type,
+          index,
+          id: valor,
+          label: valor,
+          campo,
+          codigo: store.idx.id >= 0 ? String(store.rows[index][store.idx.id] ?? '').trim() : '',
+          subtitle: featureSubtitle(store, index),
+          exact: valor.toUpperCase() === alvo,
+        });
+      }
+    }
     results.sort((a, b) => {
       if (a.exact !== b.exact) return a.exact ? -1 : 1;
       if (a.id.length !== b.id.length) return a.id.length - b.id.length;
@@ -228,8 +257,30 @@ class Library {
   async searchIdsAsync(query, limit = 12) {
     const term = String(query || '').trim();
     if (term.length < 3 || !this.isDatabase()) return [];
-    const { dbSearch } = await import('./database-client.js');
+    const { dbSearch, dbSearchFields } = await import('./database-client.js');
     const results = [];
+    try {
+      const campos = await dbSearchFields(term, limit);
+      this.searchFields = { estado: campos.estado, erro: campos.erro };
+      for (const hit of campos.hits) {
+        const store = this.stores[hit.type];
+        if (!store || !store.stats.count) continue;
+        await store.ensureRows([hit.i]);
+        if (!store.rows[hit.i]) continue;
+        results.push({
+          type: hit.type,
+          index: hit.i,
+          id: hit.valor,
+          label: hit.valor,
+          campo: hit.campo,
+          codigo: hit.id,
+          subtitle: featureSubtitle(store, hit.i),
+          exact: hit.valor === term.toUpperCase(),
+        });
+      }
+    } catch (erro) {
+      this.searchFields = { estado: 'erro', erro: erro?.message || String(erro) };
+    }
     for (const type of ['poste', 'inst', 'bt', 'mt']) {
       const store = this.stores[type];
       if (!store || !store.stats.count) continue;

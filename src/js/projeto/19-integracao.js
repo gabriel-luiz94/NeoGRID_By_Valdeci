@@ -49,7 +49,7 @@ function ligar() {
   $('#arpv').onclick = () => mostrarArruamento();
   $('#arlp').onclick = reiniciarArruamento;
   $('#pjcl').onclick = limparPoligono;
-  $('#lay-ruas').onchange = e => camadaRuas(e.target.checked);
+  $('#lay-ruas').onchange = e => camadaRuas(e.target.checked, true);
   $('#arrg').onclick = () => guardarRuas(SEL?.b || map.getBounds());
   $('#arrl').onclick = apagarRuasGuardadas;
   $('#consx').onclick = () => { $('#cons').hidden = true; };

@@ -320,7 +320,9 @@ body.is-view-map #pageSubtitle { display: none; }
 #prog { background: var(--surface); font-size: 11.5px; }
 
 /* Legenda do mapa como seletor de camadas */
-#mapLegend button.legend-item { background: none; border: 0; padding: 2px 5px; border-radius: 5px; font: inherit; color: inherit; cursor: pointer; pointer-events: auto; display: inline-flex; align-items: center; gap: inherit; }
-#mapLegend button.legend-item:hover { background: var(--surface-2); }
-#mapLegend button.legend-item.is-off { opacity: .45; text-decoration: line-through; }
-#mapLegend { pointer-events: auto; }
+#mapLegend label.legend-item { padding: 2px 5px; border-radius: 5px; color: inherit; cursor: pointer; pointer-events: auto; user-select: none; white-space: nowrap; }
+#mapLegend label.legend-item:hover { background: var(--surface-2); }
+#mapLegend label.legend-item.is-off { opacity: .55; }
+#mapLegend label.legend-item input { width: 12px; height: 12px; margin: 0; accent-color: var(--accent, #2dd4bf); cursor: pointer; }
+#mapLegend { pointer-events: auto; flex-wrap: wrap; height: auto; min-height: 30px; gap: 2px 6px; max-width: calc(100% - 84px); /* deixa livre o norte, no canto direito */ }
+#mapLegend .legend-sep { width: 1px; height: 14px; background: var(--border); margin: 0 3px; }

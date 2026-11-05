@@ -5,7 +5,8 @@ import { bus } from '../../core/bus.js';
 import { library } from '../../data/library.js';
 import { LAYER_META, LAYER_TYPES } from '../../data/schema.js';
 import { toast } from '../../ui/toast.js';
-import { getKmlExportData, setKmlVisible } from '../kml.js';
+import { settings, updateSetting } from '../../core/settings.js';
+import { getKmlExportData, hasKmlData, kmlVisivel, openKmlDialogFromApp, setKmlVisible } from '../kml.js';
 import { DEFAULT_DXF_SETTINGS, loadDxfSettings } from '../dxf/dxf-settings.js';
 
 const MOTOR = [
@@ -592,7 +593,10 @@ export function initProjeto(options) {
     focar: (lat, lon) => mapView.focusLatLng(lat, lon, 18),
     origemDados: () => library.dbInfo?.path || 'CSVs importados nesta sessão',
     registrarExportacao: (nome, caminho, arquivos) => library.addExport({ format: 'Pacote', name: nome, type: 'pacote', rows: arquivos, bytes: 0, path: caminho }),
-    modoProjeto: (ligado) => mapView.setProjectMode(ligado),
+    modoProjeto: (ligado) => {
+      mapView.setProjectMode(ligado);
+      window.ngRuasMapa?.pausar(ligado);
+    },
     colunaProjeto: (ligada) => {
       const layout = document.querySelector('.map-layout');
       if (layout?.classList.contains('is-prj') !== ligada) {
@@ -623,9 +627,9 @@ export function initProjeto(options) {
     medirLigar(!medir);
   });
   $('#prjx')?.addEventListener('click', () => { $('#prj').hidden = true; });
-  $('#mapStreets')?.addEventListener('click', async (evento) => {
+  $('#mapStreets')?.addEventListener('click', async () => {
     await carregarMotor();
-    evento.currentTarget?.classList.toggle('is-active', ruasMapa.alternar());
+    camadaRuas(!camadaRuasLigada(), true);
   });
   bus.on('labels:open', async (aba) => {
     deps.navigate?.('map');
@@ -635,19 +639,60 @@ export function initProjeto(options) {
   document.querySelectorAll('[data-estilos-abrir]').forEach((botao) => {
     botao.addEventListener('click', () => bus.emit('labels:open'));
   });
+  const marcarItem = (item, ligada) => {
+    if (!item) return;
+    item.classList.toggle('is-off', !ligada);
+    const caixa = item.querySelector('input');
+    if (caixa) caixa.checked = ligada;
+  };
+  const itemExtra = (nome) => document.querySelector(`#mapLegend [data-extra="${nome}"]`);
   const pintarLegenda = () => {
     const ativas = mapView.getVisibleLayers();
-    document.querySelectorAll('#mapLegend [data-camada]').forEach((botao) => {
-      const ligada = Boolean(ativas[botao.dataset.camada]);
-      botao.classList.toggle('is-off', !ligada);
-      botao.setAttribute('aria-pressed', String(ligada));
+    document.querySelectorAll('#mapLegend [data-camada]').forEach((item) => {
+      marcarItem(item, Boolean(ativas[item.dataset.camada]));
     });
+    const ruasLigadas = motor && typeof camadaRuasLigada === 'function' && camadaRuasLigada();
+    marcarItem(itemExtra('ruas'), Boolean(ruasLigadas));
+    $('#mapStreets')?.classList.toggle('is-active', Boolean(ruasLigadas));
+    // Sem arquivo carregado não há KML para mostrar, ainda que a camada esteja liberada.
+    marcarItem(itemExtra('kml'), hasKmlData() && kmlVisivel());
+    marcarItem(itemExtra('rotulos'), Boolean(settings.labels));
     if (typeof ngCamadasPintar === 'function') ngCamadasPintar();
   };
-  document.querySelectorAll('#mapLegend [data-camada]').forEach((botao) => {
-    botao.addEventListener('click', () => mapView.setLayer(botao.dataset.camada, !mapView.getVisibleLayers()[botao.dataset.camada]));
+  document.querySelectorAll('#mapLegend [data-camada] input').forEach((caixa) => {
+    caixa.addEventListener('change', () => mapView.setLayer(caixa.closest('[data-camada]').dataset.camada, caixa.checked));
   });
+  itemExtra('ruas')?.querySelector('input')?.addEventListener('change', async (evento) => {
+    const ligar = evento.target.checked;
+    await carregarMotor();
+    camadaRuas(ligar, true);
+    pintarLegenda();
+  });
+  itemExtra('kml')?.querySelector('input')?.addEventListener('change', async (evento) => {
+    if (!hasKmlData()) {
+      pintarLegenda();
+      openKmlDialogFromApp();
+      return;
+    }
+    const ligar = evento.target.checked;
+    await carregarMotor();
+    await ngLigarCamada('kml', ligar);
+    pintarLegenda();
+  });
+  itemExtra('rotulos')?.querySelector('input')?.addEventListener('change', (evento) => {
+    updateSetting('labels', evento.target.checked);
+  });
+  // O motor guarda a visibilidade do KML para os desenhos dele: as duas pontas andam juntas.
+  const sincronizarKml = () => {
+    if (motor && typeof ativo !== 'undefined') ativo.kmlp = ativo.kmll = kmlVisivel();
+    pintarLegenda();
+  };
   bus.on('layers:changed', pintarLegenda);
+  bus.on('kml:changed', sincronizarKml);
+  bus.on('settings:changed', ({ key }) => {
+    if (key === 'labels' || key === 'all') pintarLegenda();
+  });
+  window.NG.camadasPintar = pintarLegenda;
   pintarLegenda();
   $('#navEstilos')?.addEventListener('click', async () => {
     await carregarMotor();
@@ -658,7 +703,10 @@ export function initProjeto(options) {
   ligarPacoteRuas();
   // Rótulos e blocos do mapa usam a configuração do Projeto: o motor carrega logo após a abertura.
   setTimeout(() => {
-    carregarMotor().then(() => mapView.renderer?.schedule()).catch((erro) => console.error('[projeto]', erro));
+    carregarMotor().then(() => {
+      sincronizarKml();
+      mapView.renderer?.schedule();
+    }).catch((erro) => console.error('[projeto]', erro));
   }, 0);
   document.querySelectorAll('#limitesBox input').forEach((entrada) => {
     entrada.addEventListener('pointerdown', () => { carregarMotor(); }, { once: true });

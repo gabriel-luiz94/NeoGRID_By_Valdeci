@@ -14,6 +14,9 @@ const SHEETS = {
 const MARGIN_MM = 10;
 const MM_PER_PX = 0.0002645833;
 const RAD = Math.PI / 180;
+const TILE_TIMEOUT_MS = 60000;
+const TILE_FADE_MS = 350;
+const MIN_DATA_ZOOM = 15;   // abaixo disso o renderer não desenha a rede
 
 const state = {
   frame: null,
@@ -131,10 +134,67 @@ function fillPrintMetadata(denominator) {
   }
 }
 
+const espera = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function statusMostrar({ titulo = 'Preparando a prancha', texto = '', progresso = null, barra = true, go = '', cancelar = 'Cancelar' }) {
+  els.status.hidden = false;
+  els.statusTitle.textContent = titulo;
+  els.statusText.textContent = texto;
+  els.statusBar.hidden = !barra;
+  // Sem `value`, a barra fica em movimento: ainda não se sabe quanto falta.
+  if (progresso == null) els.statusBar.removeAttribute('value');
+  else els.statusBar.value = progresso;
+  els.statusGo.hidden = !go;
+  els.statusGo.textContent = go;
+  els.statusCancel.textContent = cancelar;
+}
+
+/** Espera as imagens de fundo da folha, até o limite de tempo. */
+async function aguardarFundo(cancelado) {
+  const inicio = performance.now();
+  let estavel = 0;
+  const imagens = () => [...els.mapSlot.querySelectorAll('img.leaflet-tile')];
+  while (performance.now() - inicio < TILE_TIMEOUT_MS && !cancelado()) {
+    const todas = imagens();
+    const prontas = todas.filter((img) => img.complete).length;
+    if (todas.length) {
+      statusMostrar({ texto: `Imagens de fundo: ${fmtInt(prontas)} de ${fmtInt(todas.length)}`, progresso: prontas / todas.length });
+    }
+    estavel = prontas === todas.length ? estavel + 1 : 0;
+    if (estavel >= 2) break;
+    await espera(200);
+  }
+  const todas = imagens();
+  return { total: todas.length, faltam: todas.filter((img) => !img.complete || !img.naturalWidth).length };
+}
+
+/** O que falta na folha e deveria impedir a impressão sem o usuário saber. */
+function problemasDaFolha(stats, fundo, lat) {
+  const problemas = [];
+  if (stats.lowZoom && stats.hasData) {
+    const limite = Math.floor((156543.03392 * Math.cos(lat * RAD)) / (2 ** MIN_DATA_ZOOM * MM_PER_PX) / 100) * 100;
+    problemas.push(`Nesta escala a rede não é desenhada. Use 1:${fmtInt(limite)} ou uma escala maior.`);
+  }
+  const nomes = (tipos) => tipos.map((tipo) => LAYER_META[tipo]?.name || tipo).join(', ');
+  if (stats.cortadas?.length) problemas.push(`A folha passa do limite de ${fmtInt(20000)} elementos por camada e sairia cortada em: ${nomes(stats.cortadas)}. Use uma escala maior.`);
+  if (stats.falhas?.length) problemas.push(`Não foi possível ler da base: ${nomes(stats.falhas)}.`);
+  if (fundo.faltam) problemas.push(`${fmtInt(fundo.faltam)} de ${fmtInt(fundo.total)} imagens de fundo não carregaram.`);
+  return problemas;
+}
+
+function avisoDeRotulos(stats) {
+  const partes = [];
+  if (stats.rotulosOmitidos) partes.push(`${fmtInt(stats.rotulosOmitidos)} omitidos por sobreposição`);
+  if (stats.rotulosZoom) partes.push(`${fmtInt(stats.rotulosZoom)} ocultos pelo zoom mínimo dos estilos`);
+  return partes.length ? `${partes.join(' e ')}. Para incluí-los, marque "Imprimir todos os rótulos".` : '';
+}
+
 async function print() {
   if (state.printing) return;
   state.printing = true;
   const map = deps.mapView.map;
+  const renderer = deps.mapView.renderer;
+  const todosRotulos = Boolean(els.allLabels?.checked);
   const mapElement = map.getContainer();
   const parent = mapElement.parentElement;
   const nextSibling = mapElement.nextElementSibling;
@@ -169,9 +229,22 @@ async function print() {
   map.invalidateSize = () => map;
   originalInvalidate({ animate: false, pan: false });
 
+  let avisoFinal = '';
+  let cancelou = false;
+  let aoCancelar = () => {};
+  let aoConfirmar = () => {};
+  const foiCancelado = () => cancelou;
+  // Resolve junto com o cancelamento, para o botão funcionar mesmo no meio de uma espera.
+  const ouCancelar = (promessa) => Promise.race([promessa, new Promise((resolve) => { aoCancelar = resolve; })]);
+
   const restore = () => {
     if (!state.printing) return;
     state.printing = false;
+    window.removeEventListener('afterprint', restore);
+    els.statusCancel.onclick = null;
+    els.statusGo.onclick = null;
+    els.status.hidden = true;
+    renderer?.setPrintMode(null);
     document.querySelector('#printPageCss').textContent = '';
     document.body.classList.remove('is-printing');
     els.root.setAttribute('aria-hidden', 'true');
@@ -185,32 +258,54 @@ async function print() {
     deps.mapView.updateScale?.();
     if (savedSelection) deps.mapView.selectFeature(savedSelection.type, savedSelection.index);
     if (state.panelOpen) updateFrame();
+    if (avisoFinal) toast.warning('Rótulos fora da prancha', avisoFinal, { duration: 12000 });
   };
 
-  window.addEventListener('afterprint', restore, { once: true });
+  els.statusCancel.onclick = () => {
+    cancelou = true;
+    aoCancelar();
+    aoConfirmar(false);
+    restore();
+  };
 
   try {
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    statusMostrar({ texto: 'Desenhando a rede da folha…' });
+    await espera(120);
+    renderer?.setPrintMode({ todos: todosRotulos });
     map.setView(center, scaleZoom(center.lat, denominator), { animate: false });
     originalInvalidate({ animate: false, pan: false });
-    await new Promise((resolve) => {
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        resolve();
-      };
-      map.once('load', finish);
-      setTimeout(finish, 1500);
-    });
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    deps.mapView.renderer?.render();
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await ouCancelar(document.fonts?.ready);
+    if (foiCancelado()) return;
+
+    let stats = await ouCancelar(renderer?.renderComplete());
+    if (foiCancelado()) return;
+    await ouCancelar(window.ngRuasMapa?.pronto());
+    if (foiCancelado()) return;
+    const fundo = await aguardarFundo(foiCancelado);
+    if (foiCancelado()) return;
+    await espera(TILE_FADE_MS);   // as imagens entram com transição de opacidade
+    if (renderer?.pendente) stats = await ouCancelar(renderer.renderComplete());
+    if (foiCancelado()) return;
+
+    const problemas = problemasDaFolha(stats || {}, fundo, center.lat);
+    if (problemas.length) {
+      statusMostrar({ titulo: 'A prancha sairia incompleta', texto: problemas.join('\n'), barra: false, go: 'Imprimir assim' });
+      const seguir = await new Promise((resolve) => {
+        aoConfirmar = resolve;
+        els.statusGo.onclick = () => resolve(true);
+      });
+      if (!seguir) return;
+    }
+
+    if (!todosRotulos) avisoFinal = avisoDeRotulos(stats || {});
+    els.status.hidden = true;
+    window.addEventListener('afterprint', restore, { once: true });
     window.print();
-    // Alguns ambientes não disparam afterprint; restaura após a janela fechar.
+    // Sem restauração por tempo: a janela de impressão ainda pode estar lendo a folha.
+    // Se o afterprint não vier, este botão é a saída.
     setTimeout(() => {
-      if (!window.matchMedia('print').matches) restore();
-    }, 1500);
+      if (state.printing) statusMostrar({ titulo: 'Impressão', texto: 'Quando terminar, volte ao mapa.', barra: false, cancelar: 'Voltar ao mapa' });
+    }, 3000);
   } catch (error) {
     restore();
     toast.error('Falha ao preparar impressão', error.message);
@@ -228,6 +323,13 @@ export function initPrint(options = {}) {
     scale: document.querySelector('#printScale'),
     titleInput: document.querySelector('#printTitleInput'),
     includeLegend: document.querySelector('#printLegend'),
+    allLabels: document.querySelector('#printAllLabels'),
+    status: document.querySelector('#printStatus'),
+    statusTitle: document.querySelector('#printStatusTitle'),
+    statusText: document.querySelector('#printStatusText'),
+    statusBar: document.querySelector('#printStatusBar'),
+    statusCancel: document.querySelector('#printStatusCancel'),
+    statusGo: document.querySelector('#printStatusGo'),
     info: document.querySelector('#printInfo'),
     root: document.querySelector('#printRoot'),
     mapSlot: document.querySelector('#printMapSlot'),

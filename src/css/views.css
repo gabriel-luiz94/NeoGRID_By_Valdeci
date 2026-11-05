@@ -1733,6 +1733,50 @@ body.is-printing .print-root {
   -webkit-print-color-adjust: exact;
 }
 
+/* Aparece só na tela enquanto a prancha é preparada; nunca sai no papel. */
+.print-status {
+  position: fixed;
+  z-index: 100000;
+  top: 24px;
+  left: 50%;
+  width: min(460px, calc(100vw - 32px));
+  padding: 16px 18px;
+  transform: translateX(-50%);
+  border-radius: 10px;
+  background: #10212d;
+  color: #f1f5f9;
+  box-shadow: 0 12px 36px rgba(3, 8, 12, .45);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.print-status[hidden] {
+  display: none;
+}
+
+.print-status p {
+  margin: 6px 0 10px;
+  white-space: pre-line;
+}
+
+.print-status progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  accent-color: #f5a524;
+}
+
+.print-status progress[hidden] {
+  display: none;
+}
+
+.print-status-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .print-map-slot {
   position: absolute;
   z-index: 0;
@@ -1943,6 +1987,10 @@ body.is-printing .leaflet-marker-pane {
     box-shadow: none !important;
   }
 
+  .print-status {
+    display: none !important;
+  }
+
   .leaflet-tile {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
@@ -2029,10 +2077,6 @@ body.is-printing .leaflet-marker-pane {
 
   .kpi-grid {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .map-legend .legend-item:nth-last-child(-n+2) {
-    display: none;
   }
 }
 

@@ -428,7 +428,7 @@ async function main() {
     ok('coluna volta ao painel de camadas', await js(`!document.querySelector('.map-layout').classList.contains('is-prj')`));
     const leg = await js(`(() => {
       const b = document.querySelector('#mapLegend [data-camada=mt]'), vis = () => window.NG.camadaVisivel('mt');
-      const a = vis(); b.click(); const c = vis(), off = b.classList.contains('is-off'); b.click();
+      const a = vis(); b.querySelector('input').click(); const c = vis(), off = b.classList.contains('is-off'); b.querySelector('input').click();
       return {a, c, off, d: vis(), on: !b.classList.contains('is-off')};
     })()`);
     ok('legenda liga e desliga camadas', leg.a && !leg.c && leg.off && leg.d && leg.on, JSON.stringify(leg));

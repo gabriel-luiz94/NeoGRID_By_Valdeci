@@ -69,11 +69,20 @@ window.ngMapa = ngMapa;
 // ---- ruas guardadas como camada de consulta do mapa (nunca baixa nada sozinha) ----
 const ruasMapa = (() => {
   const grupo = L.layerGroup(), linhas = L.canvas({padding: .2});
-  let ligada = false, seq = 0;
+  let ligada = false, pausada = false, seq = 0, avisar = false, avisoNaTela = false;
+  // Só quem acabou de ligar a camada recebe avisos: ligada desde a abertura, ela não incomoda.
+  const aviso = texto => {
+    const mostrar = avisar ? texto : '';
+    if (!mostrar && !avisoNaTela) return;
+    avisoNaTela = !!mostrar; window.NG.avisoRuasMapa(mostrar);
+  };
+  function aplicar() {
+    if (ligada && !pausada) { grupo.addTo(map); disparar(); } else { grupo.remove(); seq++; aviso(''); }
+  }
   async function atualizar() {
-    if (!ligada) return;
+    if (!ligada || pausada) return;
     const s = ++seq;
-    if (map.getZoom() < 14) { grupo.clearLayers(); window.NG.avisoRuasMapa('Aproxime o zoom para ver as ruas guardadas.'); return; }
+    if (map.getZoom() < 14) { grupo.clearLayers(); aviso('Aproxime o zoom para ver as ruas guardadas.'); return; }
     const b = map.getBounds(), tl = tilesDe({w: b.getWest(), e: b.getEast(), s: b.getSouth(), n: b.getNorth()}, 0);
     const vistos = new Set(), novas = []; let faltam = 0;
     for (const [ix, iy] of tl) {
@@ -86,14 +95,23 @@ const ruasMapa = (() => {
       }
     }
     grupo.clearLayers(); novas.forEach(l => l.addTo(grupo));
-    window.NG.avisoRuasMapa(faltam ? 'Parte desta área não tem ruas guardadas. Instale o pacote de ruas em Exportações.' : '');
+    aviso(faltam ? 'Parte desta área não tem ruas guardadas. Instale o pacote de ruas em Exportações.' : '');
   }
-  map.on('moveend', atualizar);
+  let emCurso = Promise.resolve();
+  const disparar = () => { emCurso = atualizar().catch(e => console.warn('[ruas]', e)); };
+  map.on('moveend', disparar);
   return {
-    alternar() {
-      ligada = !ligada;
-      if (ligada) { grupo.addTo(map); atualizar(); } else { grupo.remove(); seq++; window.NG.avisoRuasMapa(''); }
-      return ligada;
+    definir(on, comAviso = false) {
+      avisar = on && comAviso;
+      if (on === ligada) { if (avisar) disparar(); else aviso(''); return; }
+      ligada = on; aplicar();
     },
+    pausar(on) { pausada = on; aplicar(); },   // com o projeto aberto, só o desenho dele aparece
+    ligada: () => ligada,
+    desenhadas: () => grupo.getLayers().length,
+    noMapa: () => map.hasLayer(grupo),
+    pronto: () => emCurso,   // a impressão espera as ruas da folha
   };
 })();
+window.ngRuasMapa = ruasMapa;
+syncCamadaRuas();

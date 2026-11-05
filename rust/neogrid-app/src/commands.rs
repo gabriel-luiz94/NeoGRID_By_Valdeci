@@ -110,28 +110,68 @@ fn b64_encode(bytes: &[u8]) -> String {
 
 // ---- banco: open/info/close ----
 
-fn open_database(state: &DbState, path: &str) -> serde_json::Value {
+fn open_database(app: &tauri::AppHandle, path: &str) -> serde_json::Value {
+    let state = app.state::<DbState>();
     match Manager::open(&PathBuf::from(path)) {
         Ok(mgr) => {
             let info = mgr.info().clone();
             *state.0.lock().unwrap() = Some(mgr);
+            preparar_indice_busca(app.clone(), PathBuf::from(path));
             serde_json::json!({"opened": true, "info": info})
         }
         Err(error) => serde_json::json!({"opened": false, "error": error}),
     }
 }
 
+// O índice de busca fica em arquivo próprio nos dados do app: a base continua só leitura.
+// É gerado na primeira abertura de cada base, em segundo plano, sem segurar o banco.
+fn preparar_indice_busca(app: tauri::AppHandle, base: PathBuf) {
+    std::thread::spawn(move || {
+        let resultado = (|| -> Result<PathBuf, String> {
+            let pasta = app.path().app_data_dir().map_err(|e| e.to_string())?.join("indice-busca");
+            std::fs::create_dir_all(&pasta).map_err(|e| format!("criar pasta do índice: {e}"))?;
+            let nome = neogrid_query::nome_indice_busca(&base)?;
+            let arquivo = pasta.join(&nome);
+            // Só o índice da base atual fica guardado.
+            if let Ok(itens) = std::fs::read_dir(&pasta) {
+                for item in itens.flatten() {
+                    if item.file_name().to_string_lossy() != nome {
+                        let _ = std::fs::remove_file(item.path());
+                    }
+                }
+            }
+            if !arquivo.exists() {
+                neogrid_query::gerar_indice_busca(&base, &arquivo)?;
+            }
+            Ok(arquivo)
+        })();
+        let state = app.state::<DbState>();
+        let Ok(guard) = state.0.lock() else { return };
+        // A base pode ter sido trocada enquanto o índice era gerado.
+        let Some(mgr) = guard.as_ref().filter(|m| m.path() == base.as_path()) else { return };
+        match resultado.and_then(|arquivo| {
+            mgr.usar_indice_busca(&arquivo).map_err(|erro| {
+                let _ = std::fs::remove_file(&arquivo); // arquivo danificado: a próxima abertura refaz
+                erro
+            })
+        }) {
+            Ok(()) => {}
+            Err(erro) => mgr.definir_estado_busca(neogrid_query::EstadoBusca::Erro(erro)),
+        }
+    });
+}
+
 #[tauri::command(rename_all = "camelCase")]
 pub async fn db_open(app: tauri::AppHandle, path: String) -> serde_json::Value {
     fora_da_janela(
-        move || open_database(&app.state::<DbState>(), &path),
+        move || open_database(&app, &path),
         |error| serde_json::json!({"opened": false, "error": error}),
     )
     .await
 }
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn db_open_dialog(state: tauri::State<DbState>) -> serde_json::Value {
+pub fn db_open_dialog(app: tauri::AppHandle) -> serde_json::Value {
     let picked = rfd::FileDialog::new()
         .set_title("Abrir base NeoGrid (SQLite)")
         .add_filter("Base NeoGrid", &["sqlite", "sqlite3", "db"])
@@ -139,7 +179,7 @@ pub fn db_open_dialog(state: tauri::State<DbState>) -> serde_json::Value {
         .pick_file();
     match picked {
         None => serde_json::json!({"opened": false, "cancelled": true}),
-        Some(path) => open_database(&state, &path.to_string_lossy()),
+        Some(path) => open_database(&app, &path.to_string_lossy()),
     }
 }
 
@@ -222,6 +262,7 @@ fn db_query_sync(app: &tauri::AppHandle, channel: &str, payload: &serde_json::Va
                 i64_field("limit", 200000),
             )?).map_err(|e| e.to_string())?),
             "db:search" => Ok(serde_json::to_value(mgr.search(str_field("type"), str_field("term"), i64_field("limit", 30))?).map_err(|e| e.to_string())?),
+            "db:search-fields" => mgr.search_fields(str_field("term"), i64_field("limit", 30)),
             "db:find-by-id" => Ok(serde_json::to_value(mgr.find_by_id(str_field("type"), str_field("id"))?).map_err(|e| e.to_string())?),
             "db:page" => {
                 let sort = payload.get("sort").and_then(|v| v.as_str());

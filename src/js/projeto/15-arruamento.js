@@ -247,9 +247,13 @@ let tPrev = 0, prevOcupada = false, prevSel = null;
 function limparPrevia() { clearTimeout(tPrev); osmGrp.clearLayers(); EDT.fant.clearLayers(); EDT.vtx.clearLayers(); arrStatus(); }
 // ---- camada "Arruamento": liga/desliga a prévia no mapa e a inclusão no DXF ----
 const camadaRuasLigada = () => !!CFG.dxf.ruas;
-function syncCamadaRuas() { const c = $('#lay-ruas'); if (c) c.checked = camadaRuasLigada(); }
-function camadaRuas(on) {
-  CFG.dxf.ruas = on; salvar(); syncCamadaRuas(); renderOpcoesRuas(); if (!$('#dxp').hidden) abrirDxp();
+function syncCamadaRuas(comAviso) {
+  const c = $('#lay-ruas'); if (c) c.checked = camadaRuasLigada();
+  window.ngRuasMapa?.definir(camadaRuasLigada(), comAviso);
+  window.NG?.camadasPintar?.();
+}
+function camadaRuas(on, comAviso) {
+  CFG.dxf.ruas = on; salvar(); syncCamadaRuas(comAviso); renderOpcoesRuas(); if (!$('#dxp').hidden) abrirDxp();
   if (on) { if (SEL) previaAuto(true); } else { if (EDT.tool) edtFerramenta(EDT.tool); limparPrevia(); }
   arrStatus();
 }

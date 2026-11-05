@@ -5,6 +5,72 @@
 //! Sem cache de statements (prepare por chamada, ~µs — irrelevante perto do
 //! IO); `Connection` e `Send`, para o shell expor via `Mutex<Manager>`.
 
+#[cfg(test)]
+mod testes_busca {
+    use super::*;
+
+    fn base_teste(pasta: &Path) -> PathBuf {
+        let arquivo = pasta.join("base.sqlite");
+        let _ = std::fs::remove_file(&arquivo);
+        let conn = Connection::open(&arquivo).unwrap();
+        let schema = serde_json::json!({
+            "format": "neogrid-sqlite",
+            "layers": [
+                {"type": "poste", "count": 3, "headers": ["DE_BARRAMENTO"], "dicts": {}},
+                {"type": "inst", "count": 2, "headers": ["DE_PLACA"], "dicts": {"DE_PLACA": ["", "T18120"]}},
+            ],
+        });
+        conn.execute_batch(
+            "CREATE TABLE meta (key TEXT, value TEXT);
+             CREATE TABLE poste (_rid INTEGER PRIMARY KEY, _id TEXT, DE_BARRAMENTO TEXT, enchimento TEXT);
+             CREATE TABLE inst (_rid INTEGER PRIMARY KEY, _id TEXT, DE_PLACA INTEGER, enchimento TEXT);
+             INSERT INTO poste VALUES (1, '100', 'h044357', zeroblob(2000)), (2, '200', ' H044358 ', ''), (3, '300', '', '');
+             INSERT INTO inst VALUES (1, '42666', 1, ''), (2, '42667', 0, '');",
+        )
+        .unwrap();
+        conn.execute("INSERT INTO meta VALUES ('schema', ?)", [schema.to_string()]).unwrap();
+        arquivo
+    }
+
+    #[test]
+    fn busca_por_barramento_e_placa() {
+        let pasta = std::env::temp_dir().join(format!("neogrid-busca-{}", std::process::id()));
+        std::fs::create_dir_all(&pasta).unwrap();
+        let base = base_teste(&pasta);
+        let antes = std::fs::read(&base).unwrap();
+        let indice = pasta.join(nome_indice_busca(&base).unwrap());
+        let mgr = Manager::open(&base).unwrap();
+
+        let aguardando = mgr.search_fields("H04", 10).unwrap();
+        assert_eq!(aguardando["estado"], "preparando");
+        assert_eq!(aguardando["hits"].as_array().unwrap().len(), 0);
+
+        gerar_indice_busca(&base, &indice).unwrap();
+        assert!(!indice.with_extension("tmp").exists(), "temporário removido");
+        mgr.usar_indice_busca(&indice).unwrap();
+
+        let r = mgr.search_fields("h0443", 10).unwrap();
+        assert_eq!(r["estado"], "pronto");
+        let hits = r["hits"].as_array().unwrap();
+        assert_eq!(hits.len(), 2, "{r}");
+        assert_eq!(hits[0]["valor"], "H044357");
+        assert_eq!(hits[0]["id"], "100");
+        assert_eq!(hits[0]["campo"], "barramento");
+        assert_eq!(hits[1]["valor"], "H044358");
+
+        // Coluna guardada em dicionário: procura o texto, nunca o código.
+        let placa = mgr.search_fields("t18120", 10).unwrap();
+        assert_eq!(placa["hits"][0]["type"], "inst");
+        assert_eq!(placa["hits"][0]["id"], "42666");
+        assert_eq!(placa["hits"].as_array().unwrap().len(), 1);
+
+        assert_eq!(mgr.search_fields("ZZZ", 10).unwrap()["hits"].as_array().unwrap().len(), 0);
+        drop(mgr);
+        assert_eq!(std::fs::read(&base).unwrap(), antes, "a base não pode mudar");
+        let _ = std::fs::remove_dir_all(&pasta);
+    }
+}
+
 use rusqlite::{functions::FunctionFlags, types::Value, Connection, OpenFlags};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -38,6 +104,71 @@ pub struct Manager {
     /// Regionais selecionadas; vazio = todas. Filtra mapa e coleta por área.
     regions: RefCell<Vec<String>>,
     path: PathBuf,
+    /// Índice de busca por campo (arquivo à parte) e como ele está.
+    busca: RefCell<Option<Connection>>,
+    busca_estado: RefCell<EstadoBusca>,
+}
+
+/// Situação do índice de busca por campo, informada à barra de pesquisa.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EstadoBusca {
+    Preparando,
+    Pronto,
+    Erro(String),
+}
+
+/// Campos pesquisáveis além do `_id`: (camada, nomes aceitos da coluna, rótulo).
+/// A posição na lista é o código `fonte` gravado no índice: mudar a lista exige
+/// subir `BUSCA_VERSAO`.
+const BUSCA_CAMPOS: [(&str, &[&str], &str); 2] = [
+    ("poste", &["DE_BARRAMENTO", "DE_BARRAMEN"], "barramento"),
+    ("inst", &["DE_PLACA"], "placa"),
+];
+const BUSCA_VERSAO: u32 = 1;
+
+fn normalizar_termo(texto: &str) -> String {
+    texto.trim().to_uppercase()
+}
+
+fn fnv1a(dados: &[u8], mut hash: u64) -> u64 {
+    for b in dados {
+        hash ^= u64::from(*b);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+/// Nome do arquivo de índice de uma base: muda quando a base é trocada ou regravada.
+pub fn nome_indice_busca(base: &Path) -> Result<String, String> {
+    let meta = std::fs::metadata(base).map_err(|e| format!("base: {e}"))?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    hash = fnv1a(base.to_string_lossy().as_bytes(), hash);
+    hash = fnv1a(&meta.len().to_le_bytes(), hash);
+    hash = fnv1a(&mtime.to_le_bytes(), hash);
+    hash = fnv1a(&BUSCA_VERSAO.to_le_bytes(), hash);
+    Ok(format!("busca-{hash:016x}.sqlite"))
+}
+
+/// Grava o índice de busca em `destino`, sem tocar na base: a base é aberta só para
+/// leitura e o arquivo só recebe o nome final depois de completo.
+pub fn gerar_indice_busca(base: &Path, destino: &Path) -> Result<(), String> {
+    let origem = Manager::open(base)?;
+    let temporario = destino.with_extension("tmp");
+    let _ = std::fs::remove_file(&temporario);
+    let resultado = origem.gravar_indice_busca(&temporario);
+    match resultado.and_then(|()| std::fs::rename(&temporario, destino).map_err(|e| format!("gravar índice: {e}"))) {
+        Ok(()) => Ok(()),
+        Err(erro) => {
+            let _ = std::fs::remove_file(&temporario);
+            Err(erro)
+        }
+    }
 }
 
 fn sql_value_f64(v: &Value) -> Option<f64> {
@@ -137,11 +268,128 @@ impl Manager {
         }
         schema["path"] = serde_json::Value::String(path.to_string_lossy().to_string());
         schema["size"] = serde_json::json!(meta.len());
-        Ok(Self { conn, layers, info_json: schema, regions: RefCell::new(Vec::new()), path: path.to_path_buf() })
+        Ok(Self {
+            conn,
+            layers,
+            info_json: schema,
+            regions: RefCell::new(Vec::new()),
+            path: path.to_path_buf(),
+            busca: RefCell::new(None),
+            busca_estado: RefCell::new(EstadoBusca::Preparando),
+        })
     }
 
     pub fn info(&self) -> &serde_json::Value {
         &self.info_json
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn definir_estado_busca(&self, estado: EstadoBusca) {
+        *self.busca_estado.borrow_mut() = estado;
+    }
+
+    /// Passa a pesquisar em um índice já completo.
+    pub fn usar_indice_busca(&self, arquivo: &Path) -> Result<(), String> {
+        let conn = Connection::open_with_flags(arquivo, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|e| format!("abrir índice: {e}"))?;
+        conn.query_row("SELECT count(*) FROM (SELECT 1 FROM busca LIMIT 1)", [], |r| r.get::<_, i64>(0))
+            .map_err(|e| format!("índice de busca inválido: {e}"))?;
+        *self.busca.borrow_mut() = Some(conn);
+        *self.busca_estado.borrow_mut() = EstadoBusca::Pronto;
+        Ok(())
+    }
+
+    fn gravar_indice_busca(&self, arquivo: &Path) -> Result<(), String> {
+        let saida = Connection::open(arquivo).map_err(|e| format!("criar índice: {e}"))?;
+        saida
+            .execute_batch(
+                "PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA cache_size = -262144; PRAGMA temp_store = MEMORY;
+                 CREATE TABLE busca (termo TEXT NOT NULL, fonte INTEGER NOT NULL, rid INTEGER NOT NULL,
+                                     PRIMARY KEY (termo, fonte, rid)) WITHOUT ROWID;
+                 BEGIN;",
+            )
+            .map_err(|e| format!("criar índice: {e}"))?;
+        {
+            let mut inserir = saida
+                .prepare("INSERT OR IGNORE INTO busca (termo, fonte, rid) VALUES (?, ?, ?)")
+                .map_err(|e| e.to_string())?;
+            for (fonte, (camada, nomes, _)) in BUSCA_CAMPOS.iter().enumerate() {
+                let Some(info) = self.layers.get(*camada) else { continue };
+                let Some(coluna) = nomes.iter().find_map(|n| info.headers.iter().position(|h| h == n)) else { continue };
+                let q = quote_ident(&info.headers[coluna]);
+                let dicionario = info.dicts.get(&coluna);
+                let sql = format!("SELECT \"_rid\", {q} FROM \"{camada}\" WHERE {q} IS NOT NULL AND {q} != ''");
+                let mut ler = self.conn.prepare(&sql).map_err(|e| e.to_string())?;
+                let mut linhas = ler.query([]).map_err(|e| e.to_string())?;
+                while let Some(linha) = linhas.next().map_err(|e| e.to_string())? {
+                    let rid: i64 = linha.get(0).map_err(|e| e.to_string())?;
+                    let valor: Value = linha.get(1).map_err(|e| e.to_string())?;
+                    let texto = match (&valor, dicionario) {
+                        (Value::Integer(codigo), Some(lista)) => lista.get(*codigo as usize).cloned().unwrap_or_default(),
+                        (Value::Integer(n), None) => n.to_string(),
+                        (Value::Real(f), _) => float_cell(*f),
+                        (Value::Text(s), _) => s.clone(),
+                        _ => String::new(),
+                    };
+                    let termo = normalizar_termo(&texto);
+                    if termo.is_empty() {
+                        continue;
+                    }
+                    inserir
+                        .execute(rusqlite::params![termo, fonte as i64, rid])
+                        .map_err(|e| format!("gravar índice: {e}"))?;
+                }
+            }
+        }
+        saida.execute_batch("COMMIT;").map_err(|e| format!("gravar índice: {e}"))?;
+        Ok(())
+    }
+
+    /// Procura pelo começo do valor nos campos de `BUSCA_CAMPOS`, sem diferenciar maiúsculas.
+    /// Valores iguais ao termo vêm primeiro, pois a ordem é a do próprio texto.
+    pub fn search_fields(&self, term: &str, limit: i64) -> Result<serde_json::Value, String> {
+        let estado = self.busca_estado.borrow().clone();
+        let (nome_estado, erro) = match &estado {
+            EstadoBusca::Preparando => ("preparando", None),
+            EstadoBusca::Pronto => ("pronto", None),
+            EstadoBusca::Erro(texto) => ("erro", Some(texto.clone())),
+        };
+        let mut hits = Vec::new();
+        let termo = normalizar_termo(term);
+        if let (Some(busca), false) = (self.busca.borrow().as_ref(), termo.is_empty()) {
+            let fim = format!("{termo}\u{10FFFF}");
+            let mut stmt = busca
+                .prepare("SELECT termo, fonte, rid FROM busca WHERE termo >= ? AND termo < ? ORDER BY termo LIMIT ?")
+                .map_err(|e| e.to_string())?;
+            let achados = stmt
+                .query_map(rusqlite::params![termo, fim, limit.clamp(1, 200)], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            for (valor, fonte, rid) in achados {
+                let Some((camada, _, campo)) = BUSCA_CAMPOS.get(fonte as usize) else { continue };
+                let sql = format!("SELECT \"_id\" FROM \"{camada}\" WHERE \"_rid\" = ?");
+                let id = self
+                    .query_tuples(&sql, &[&rid as &dyn rusqlite::ToSql])?
+                    .into_iter()
+                    .next()
+                    .and_then(|v| v.into_iter().next())
+                    .map(|v| match v {
+                        Value::Text(s) => s,
+                        Value::Integer(n) => n.to_string(),
+                        Value::Real(f) => float_cell(f),
+                        _ => String::new(),
+                    })
+                    .unwrap_or_default();
+                hits.push(serde_json::json!({"type": camada, "i": rid, "id": id, "valor": valor, "campo": campo}));
+            }
+        }
+        Ok(serde_json::json!({"estado": nome_estado, "erro": erro, "hits": hits}))
     }
 
     fn layer(&self, layer_type: &str) -> Result<&LayerInfo, String> {

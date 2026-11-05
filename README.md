@@ -30,6 +30,9 @@ npm run app:release-run   # roda o release (frontend embutido)
 npm run core:test         # testes do núcleo Rust
 npm run core:parity       # audita adapter x commands x ACL
 npm run e2e:projeto -- --port 9222 --db <base.sqlite> --out <pasta>   # módulo Projeto no app real
+npm run e2e:print -- --port 9222 --db <base.sqlite> --out <pasta>     # impressão pelo botão do mapa
+npm run e2e:busca -- --port 9222 --db <base.sqlite> --out <pasta>     # barra de pesquisa e controles de camadas
+npm run test:coord                                                    # interpretação de coordenadas
 ```
 
 ### Instalador para Windows
@@ -103,7 +106,7 @@ Dados de vias © colaboradores do OpenStreetMap, licença ODbL.
 
 Estilos, regras, blocos e rótulos, inclusive os do KML, ficam em um só lugar (**Estilos**, na barra lateral) e valem para o **mapa inteiro**, para o projeto e para o DXF. Fonte, tamanho, cor, contorno, balão e posição dos rótulos aparecem no mapa, e o projeto aberto se refaz ao mudar um estilo.
 
-As camadas se ligam e desligam pela legenda do mapa, que fica sempre à vista, pelo painel de camadas e pelo painel do Projeto. No Projeto, desligar uma camada também a tira do DXF, da prancha e do quantitativo. Na primeira abertura, blocos, regras e rótulos configurados em versões anteriores são convertidos.
+As camadas se ligam e desligam pela legenda do mapa, que fica sempre à vista, pelo painel de camadas e pelo painel do Projeto. A legenda também traz **Arruamento** (ruas guardadas no mapa e inclusão no DXF), **KML** e **Rótulos**. No Projeto, desligar uma camada também a tira do DXF, da prancha e do quantitativo. Na primeira abertura, blocos, regras e rótulos configurados em versões anteriores são convertidos.
 
 As edições, estilos e ruas ficam em `workspace.sqlite`, na pasta de dados do app, separado da base: gerar a base do mês seguinte não apaga o trabalho.
 
@@ -128,7 +131,7 @@ Ao gerar a base, as pastas abaixo da origem viram a coluna `REGIONAL`. A base po
 - Painel de camadas recolhível e detalhes sob demanda para manter o mapa limpo.
 - Clique em ativos sobrepostos mostra uma lista para escolher o elemento correto.
 - Escala calculada em tempo real, barra de escala, norte, tela cheia e transparência do fundo.
-- Busca global por ID, coordenada ou endereço (OSM/Nominatim/Photon).
+- Busca global por ID de poste, instalação ou trecho, barramento (`DE_BARRAMENTO`), placa (`DE_PLACA`), coordenada ou endereço (OSM/Nominatim/Photon). Coordenadas aceitam graus decimais, graus e minutos e UTM no formato do Google Earth (`25M 291443 9108420`). Códigos e coordenadas não vão para os serviços de endereço nas sugestões automáticas. A busca por barramento e placa usa um índice próprio (cerca de 50 MB nos dados do app), gerado sozinho na primeira abertura de cada base, sem alterar a base.
 
 ### Importação
 - Leitura em **Web Worker** com envio por lotes, evitando travar a interface.
@@ -172,7 +175,7 @@ Limitações do modo banco: o CSV exporta a página atual (para áreas maiores, 
 - **KML**: importe arquivos, veja pontos/linhas/áreas, escolha o que exibir e inclua os elementos visíveis no DXF.
 - **Configuração de blocos portátil**: exporte blocos, regras, cores e rótulos para um `.json` e importe em outra máquina pelo botão **Importar…** do desenho.
 - **CSV** por camada, completo (um arquivo por camada).
-- **Prancha/PDF** de A4 a A0, paisagem ou retrato, com moldura de área, carimbo, legenda, norte e escala exata.
+- **Prancha/PDF** de A4 a A0, paisagem ou retrato, com moldura de área, carimbo, legenda, norte e escala exata. A janela de impressão só abre com a rede e o fundo da folha completos; a impressão não usa os limites de desempenho da tela. Se algo faltar (camada acima de 20.000 elementos, imagens de fundo, escala abaixo de 1:17.800), o app avisa antes de imprimir. Rótulos sobrepostos ou abaixo do zoom mínimo dos estilos ficam de fora, com aviso ao final, ou entram com **Imprimir todos os rótulos**.
 - Histórico de exportações da sessão.
 
 ### Configurações
