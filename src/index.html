@@ -353,15 +353,11 @@
 
                 <div class="panel-pane" data-panel="display" hidden>
                   <div class="panel-section">
-                    <div class="panel-section-head"><span>Rótulos</span></div>
-                    <label class="switch-row">
-                      <span><strong>Mostrar rótulos</strong><small>Postes, redes e instalações</small></span>
-                      <input type="checkbox" id="toggleLabels" class="switch" checked>
-                    </label>
-                    <button class="btn btn-ghost btn-sm btn-block" type="button" data-estilos-abrir>
-                      <svg class="icon"><use href="#i-tag"/></svg> Abrir Estilos
+                    <div class="panel-section-head"><span>Camadas, rótulos e estilos</span></div>
+                    <button class="btn btn-ghost btn-sm btn-block" type="button" data-estilos-abrir="camadas">
+                      <svg class="icon"><use href="#i-tag"/></svg> Abrir Estilos → Camadas
                     </button>
-                    <p class="field-hint">Campos, fonte, cor e zoom de cada rótulo ficam em Estilos. Rótulos que colidem são ocultados automaticamente.</p>
+                    <p class="field-hint">O que aparece no mapa (camadas e rótulos de cada uma) e a aparência de tudo ficam num só lugar, em Estilos. A legenda do mapa liga e desliga as mesmas opções.</p>
                   </div>
                   <details class="panel-details">
                     <summary>Desempenho e diagnóstico</summary>
@@ -448,14 +444,15 @@
 
               <div class="map-legend" id="mapLegend">
                 <span class="legend-title">Camadas</span>
-                <label class="legend-item" data-camada="poste" title="Mostrar ou ocultar os postes"><input type="checkbox" checked><i style="--c: var(--layer-poste)"></i>Postes</label>
-                <label class="legend-item" data-camada="bt" title="Mostrar ou ocultar a rede BT"><input type="checkbox" checked><i style="--c: var(--layer-bt)"></i>Rede BT</label>
-                <label class="legend-item" data-camada="mt" title="Mostrar ou ocultar a rede MT"><input type="checkbox" checked><i style="--c: var(--layer-mt)"></i>Rede MT</label>
-                <label class="legend-item" data-camada="inst" title="Mostrar ou ocultar as instalações"><input type="checkbox" checked><i style="--c: var(--layer-inst)"></i>Instalações</label>
+                <span class="legend-par"><label class="legend-item" data-camada="poste" title="Mostrar ou ocultar os postes"><input type="checkbox" checked><i style="--c: var(--layer-poste)"></i>Postes</label><button class="legend-rot" type="button" data-rot="poste" aria-pressed="true" title="Rótulos dos postes: ligar ou desligar">Aa</button></span>
+                <span class="legend-par"><label class="legend-item" data-camada="bt" title="Mostrar ou ocultar a rede BT"><input type="checkbox" checked><i style="--c: var(--layer-bt)"></i>Rede BT</label><button class="legend-rot" type="button" data-rot="bt" aria-pressed="true" title="Rótulos da rede BT: ligar ou desligar">Aa</button></span>
+                <span class="legend-par"><label class="legend-item" data-camada="mt" title="Mostrar ou ocultar a rede MT"><input type="checkbox" checked><i style="--c: var(--layer-mt)"></i>Rede MT</label><button class="legend-rot" type="button" data-rot="mt" aria-pressed="true" title="Rótulos da rede MT: ligar ou desligar">Aa</button></span>
+                <span class="legend-par"><label class="legend-item" data-camada="inst" title="Mostrar ou ocultar as instalações"><input type="checkbox" checked><i style="--c: var(--layer-inst)"></i>Instalações</label><button class="legend-rot" type="button" data-rot="inst" aria-pressed="true" title="Rótulos das instalações: ligar ou desligar">Aa</button></span>
                 <span class="legend-sep"></span>
-                <label class="legend-item" data-extra="ruas" title="Liga ou desliga o arruamento (ruas guardadas no mapa e inclusão no DXF)"><input type="checkbox"><i style="--c: #ff9f1c"></i>Arruamento</label>
-                <label class="legend-item" data-extra="kml" title="Mostrar ou ocultar o KML. Sem KML carregado, abre a importação"><input type="checkbox"><i style="--c: #38bdf8"></i>KML</label>
-                <label class="legend-item" data-extra="rotulos" title="Mostrar ou ocultar os rótulos do mapa"><input type="checkbox" checked>Rótulos</label>
+                <span class="legend-par"><label class="legend-item" data-extra="ruas" title="Liga ou desliga o arruamento offline (ruas guardadas no mapa e inclusão no DXF)"><input type="checkbox"><i style="--c: var(--layer-ruas, #ff9f1c)"></i>Arruamento</label><button class="legend-rot" type="button" data-rot="ruas" aria-pressed="true" title="Nomes das ruas: ligar ou desligar">Aa</button></span>
+                <span class="legend-par"><label class="legend-item" data-extra="kml" title="Mostrar ou ocultar o KML. Sem KML carregado, abre a importação"><input type="checkbox"><i style="--c: var(--layer-kml, #38bdf8)"></i>KML</label><button class="legend-rot" type="button" data-rot="kml" aria-pressed="true" title="Rótulos do KML: ligar ou desligar">Aa</button></span>
+                <span class="legend-sep"></span>
+                <label class="legend-item" data-extra="rotulos" title="Chave geral: mostrar ou ocultar todos os rótulos do mapa"><input type="checkbox" checked>Rótulos</label>
               </div>
 
               <div class="map-scale-control" id="mapScaleControl">
@@ -1004,14 +1001,8 @@
 
         <div class="kml-options-grid">
           <section class="kml-options-card">
-            <strong>O que exibir</strong>
-            <label class="check-row"><input type="checkbox" id="kmlShowPoints" checked><span>Pontos</span></label>
-            <label class="check-row"><input type="checkbox" id="kmlShowLines" checked><span>Linhas</span></label>
-            <label class="check-row"><input type="checkbox" id="kmlShowPolygons" checked><span>Áreas / polígonos</span></label>
-          </section>
-          <section class="kml-options-card">
-            <strong>Aparência</strong>
-            <p class="field-hint">Cores, tamanhos e nomes do KML ficam em Estilos.</p>
+            <strong>Exibição e aparência</strong>
+            <p class="field-hint">Pontos, linhas, áreas, rótulos e cores do KML ficam em Estilos → Camadas. O KML vale só enquanto o programa estiver aberto: ao reabrir, importe de novo.</p>
             <button class="btn btn-ghost btn-sm" type="button" id="kmlEstilos">Abrir Estilos</button>
             <button class="btn btn-ghost btn-sm" type="button" id="kmlFit">Ir para o KML</button>
           </section>

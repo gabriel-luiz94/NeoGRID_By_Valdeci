@@ -1,6 +1,9 @@
 /* Aplica ao mapa inteiro a mesma configuração do Projeto: regras, blocos, cores e rótulos.
    O renderizador do NeoGrid chama estas funções e guarda o resultado por elemento. */
 
+// Rótulos da camada ligados no mapa? Pontos e linhas do KML respondem juntos à chave "kml".
+const rotuloLigado = g => CFG.mapa?.rot?.[KML(g) ? 'kml' : g] !== false;
+
 const ngMapa = (() => {
   let versao = 1;
   const formasMapa = {ret: 'rectangle', quad: 'square', circ: 'circle', tri: 'triangle', linha: 'line', losango: 'square'};
@@ -44,6 +47,7 @@ const ngMapa = (() => {
     /** Linhas de texto dos rótulos ligados, com a cor do primeiro que apareceu. */
     rotulo(type, store, index) {
       const linhas = []; let cor = null, est = null;
+      if (!rotuloLigado(type)) { linhas.cor = null; linhas.est = null; return linhas; }
       for (const l of CFG.cam[type].labels) {
         if (!l.on || !l.expr) continue;
         if (l.filtro && !truthy(avaliar(l.filtro, type, store, index))) continue;
@@ -58,9 +62,17 @@ const ngMapa = (() => {
     /** Estilo do KML, que o mapa também segue. */
     kml() {
       const p = CFG.cam.kmlp, l = CFG.cam.kmll;
-      return {ponto: p.base.cor, linha: l.base.cor, raio: (p.base.tam || 10) / 2, larg: l.base.larg || 2, corKml: p.base.corKml !== false && l.base.corKml !== false, rotulos: p.labels.some(r => r.on) || l.labels.some(r => r.on)};
+      return {ponto: p.base.cor, linha: l.base.cor, raio: (p.base.tam || 10) / 2, larg: l.base.larg || 2, corKml: p.base.corKml !== false && l.base.corKml !== false, rotulos: rotuloLigado('kml') && (p.labels.some(r => r.on) || l.labels.some(r => r.on))};
     },
-    cores: () => Object.fromEntries(['poste', 'inst', 'bt', 'mt'].map(t => [t, CFG.cam[t].base.cor])),
+    cores: () => ({...Object.fromEntries(['poste', 'inst', 'bt', 'mt'].map(t => [t, CFG.cam[t].base.cor])), kml: CFG.cam.kmll.base.cor, ruas: CFG.mapa.ruas.cor}),
+    rotuloLigado,
+    /** Liga ou desliga os rótulos de uma camada no mapa (poste, inst, bt, mt, kml, ruas). */
+    definirRotulo(grupo, on) {
+      if (!(grupo in CFG.mapa.rot)) return;
+      CFG.mapa.rot[grupo] = !!on; salvar();
+      if (grupo === 'ruas') ruasMapa.redesenhar();
+      else this.alterada();
+    },
     desenharBloco,
   };
 })();
@@ -84,17 +96,32 @@ const ruasMapa = (() => {
     const s = ++seq;
     if (map.getZoom() < 14) { grupo.clearLayers(); aviso('Aproxime o zoom para ver as ruas guardadas.'); return; }
     const b = map.getBounds(), tl = tilesDe({w: b.getWest(), e: b.getEast(), s: b.getSouth(), n: b.getNorth()}, 0);
-    const vistos = new Set(), novas = []; let faltam = 0;
+    const vistos = new Set(), novas = [], est = CFG.mapa.ruas; let faltam = 0;
+    // Nome da rua: um rótulo por nome, no trecho mais longo que aparece na tela.
+    const comNome = window.NG.rotulosGerais?.() !== false && rotuloLigado('ruas') && map.getZoom() >= (est.rotMinZ || 17);
+    const maiorPorNome = new Map();
     for (const [ix, iy] of tl) {
       const t = await cacheLer(tlChave(ix, iy));
       if (s !== seq) return;
       if (!t) { faltam++; continue; }
       for (const w of t.ways) {
         if (vistos.has(w.i)) continue; vistos.add(w.i);
-        novas.push(L.polyline(w.p, {renderer: linhas, color: '#ff9f1c', weight: 1.5, opacity: .8, interactive: false}));
+        const linha = L.polyline(w.p, {renderer: linhas, color: est.cor, weight: est.larg, opacity: est.opac, interactive: false});
+        novas.push(linha);
+        const nome = comNome && w.t && w.t.name;
+        if (!nome) continue;
+        const tam = w.p.length > 1 ? hav(w.p[0][0], w.p[0][1], w.p[w.p.length - 1][0], w.p[w.p.length - 1][1]) : 0;
+        const atual = maiorPorNome.get(nome);
+        if (!atual || tam > atual.tam) maiorPorNome.set(nome, {linha, tam});
       }
     }
     grupo.clearLayers(); novas.forEach(l => l.addTo(grupo));
+    let n = 0;
+    for (const [nome, {linha}] of maiorPorNome) {
+      if (n++ >= 150) break;
+      linha.bindTooltip(nome.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]), {permanent: true, direction: 'center', className: 'ruas-label', opacity: .92});
+    }
+    document.documentElement.style.setProperty('--ruas-rotulo', est.rotCor || '#ffe2b8');
     aviso(faltam ? 'Parte desta área não tem ruas guardadas. Instale o pacote de ruas em Exportações.' : '');
   }
   let emCurso = Promise.resolve();
@@ -108,6 +135,8 @@ const ruasMapa = (() => {
     },
     pausar(on) { pausada = on; aplicar(); },   // com o projeto aberto, só o desenho dele aparece
     ligada: () => ligada,
+    redesenhar() { if (ligada && !pausada) disparar(); },   // estilo ou rótulos mudaram
+    nomes: () => grupo.getLayers().filter(l => l.getTooltip && l.getTooltip()).length,
     desenhadas: () => grupo.getLayers().length,
     noMapa: () => map.hasLayer(grupo),
     pronto: () => emCurso,   // a impressão espera as ruas da folha

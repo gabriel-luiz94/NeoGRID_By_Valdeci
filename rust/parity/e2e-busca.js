@@ -194,10 +194,43 @@ async function main() {
   await js(`window.__clicar('data-extra=rotulos')`);
   const semRotulos = await js(conta);
   ok('desligar Rótulos tira os rótulos', semRotulos === 0, `${semRotulos} rótulos`);
-  ok('painel Exibição acompanha', (await js(`document.querySelector('#toggleLabels').checked`)) === false);
-  await js(`document.querySelector('#toggleLabels').click()`);
+  ok('botões Aa ficam inativos com a chave geral desligada', await js(`[...document.querySelectorAll('#mapLegend [data-rot]')].every((b) => b.disabled)`));
+  // Estilos → Camadas é o lugar único das opções de exibição.
+  await js(`document.querySelector('#navEstilos').click()`);
+  await pausa(600);
+  const sp = await js(`({ aba: SP.aba, linhas: document.querySelectorAll('#spc .sp-cam-n').length, geral: document.querySelector('#spc .sec input[type=checkbox]').checked })`);
+  ok('Estilos abre em Camadas com as 6 camadas', sp.aba === 'camadas' && sp.linhas === 6, JSON.stringify(sp));
+  ok('Estilos → Camadas acompanha a chave geral', sp.geral === false, JSON.stringify(sp));
+  await js(`document.querySelector('#spc .sec input[type=checkbox]').click()`);
   await pausa(300);
-  ok('ligar pelo painel marca a legenda', (await js(`window.__marcado('data-extra=rotulos')`)).checked === true);
+  ok('ligar em Estilos marca a legenda', (await js(`window.__marcado('data-extra=rotulos')`)).checked === true);
+  await foto('estilos-camadas');
+
+  // Rótulos por camada (botão Aa da legenda)
+  const comTodos = await js(conta);
+  for (const g of ['poste', 'inst', 'bt', 'mt']) await js(`document.querySelector('#mapLegend [data-rot=${g}]').click()`);
+  await pausa(400);
+  const semRede = await js(conta);
+  ok('Aa desliga os rótulos de cada camada', comTodos > 0 && semRede === 0, `${comTodos} -> ${semRede}`);
+  ok('Aa fica desmarcado e Estilos acompanha', await js(`document.querySelector('#mapLegend [data-rot=poste]').getAttribute('aria-pressed') === 'false' && CFG.mapa.rot.poste === false`));
+  await js(`document.querySelector('#mapLegend [data-rot=poste]').click()`);
+  await pausa(400);
+  const soPostes = await js(conta);
+  ok('ligar só os postes traz só os rótulos dos postes', soPostes > 0 && soPostes < comTodos, `${soPostes} de ${comTodos}`);
+  ok('camada continua visível sem rótulo', await js(`window.NG.camadaVisivel('mt') && window.NG.camadaVisivel('bt')`));
+  for (const g of ['inst', 'bt', 'mt']) await js(`document.querySelector('#mapLegend [data-rot=${g}]').click()`);
+  await pausa(400);
+  // A contagem oscila alguns rótulos entre quadros (colisões e limite por quadro): compara com folga de 5%.
+  const religados = await js(conta);
+  ok('religar devolve todos os rótulos', religados >= comTodos * 0.95, `${religados} de ${comTodos}`);
+  // Mostrar/ocultar pela tela de Estilos
+  await js(`document.querySelector('#spc [data-sp-mostrar=mt]').click()`);
+  await pausa(500);
+  ok('Estilos → Camadas oculta a rede MT e a legenda acompanha', await js(`!window.NG.camadaVisivel('mt') && !window.__marcado('data-camada=mt').checked`));
+  await js(`document.querySelector('#spc [data-sp-mostrar=mt]').click()`);
+  await pausa(500);
+  ok('e mostra de novo', await js(`window.NG.camadaVisivel('mt') && window.__marcado('data-camada=mt').checked`));
+  await js(`fecharSP()`);
 
   // Arruamento
   const ruas0 = await js(`({ cfg: CFG.dxf.ruas, ligada: ruasMapa.ligada(), caixa: window.__marcado('data-extra=ruas'), botao: document.querySelector('#mapStreets').classList.contains('is-active'), lay: document.querySelector('#lay-ruas').checked })`);
@@ -207,7 +240,19 @@ async function main() {
   await pausa(800);
   const ruasL = await js(`({ n: ruasMapa.desenhadas(), cfg: CFG.dxf.ruas })`);
   ok('Arruamento ligado desenha as ruas guardadas', ruasL.n > 0 && ruasL.cfg === true, JSON.stringify(ruasL));
+  const nomesRuas = await js(`ruasMapa.nomes()`);
+  ok('Arruamento mostra os nomes das ruas', nomesRuas > 0, `${nomesRuas} nomes`);
   await foto('camadas-arruamento');
+  await js(`document.querySelector('#mapLegend [data-rot=ruas]').click(); ruasMapa.pronto()`);
+  await pausa(600);
+  ok('Aa do Arruamento tira os nomes e mantém as ruas', (await js(`ruasMapa.nomes()`)) === 0 && (await js(`ruasMapa.desenhadas()`)) > 0);
+  await js(`document.querySelector('#mapLegend [data-rot=ruas]').click(); ruasMapa.pronto()`);
+  await pausa(600);
+  ok('e devolve os nomes', (await js(`ruasMapa.nomes()`)) > 0);
+  await js(`CFG.mapa.ruas.cor = '#00ff00'; ruasMapa.redesenhar(); ruasMapa.pronto()`);
+  await pausa(600);
+  ok('cor do arruamento vem de Estilos', await js(`ruasMapa.desenhadas() > 0 && (() => { let c = null; window.__neo.mapView.map.eachLayer((l) => { if (l instanceof L.Polyline && l.options.color === '#00ff00') c = true; }); return c; })()`));
+  await js(`CFG.mapa.ruas.cor = cfgPadrao().mapa.ruas.cor; ruasMapa.redesenhar()`);
   await js(`window.__clicar('data-extra=ruas')`);
   const ruasD = await js(`({ cfg: CFG.dxf.ruas, ligada: ruasMapa.ligada(), noMapa: ruasMapa.noMapa(), botao: document.querySelector('#mapStreets').classList.contains('is-active'), lay: document.querySelector('#lay-ruas').checked, caixa: window.__marcado('data-extra=ruas') })`);
   ok('desligar Arruamento apaga e tira do DXF', !ruasD.cfg && !ruasD.ligada && !ruasD.noMapa && !ruasD.botao && !ruasD.lay && !ruasD.caixa.checked, JSON.stringify(ruasD));
@@ -239,6 +284,17 @@ async function main() {
   await js(`window.__clicar('data-extra=rotulos')`);
   ok('Rótulos desligado também vale para o KML', (await js(rotKml)) === 0);
   await js(`window.__clicar('data-extra=rotulos')`);
+  await js(`document.querySelector('#mapLegend [data-rot=kml]').click()`);
+  await pausa(500);
+  ok('Aa do KML tira os nomes e mantém as formas', (await js(rotKml)) === 0 && (await js(kmlPane)) > 0);
+  await js(`document.querySelector('#mapLegend [data-rot=kml]').click()`);
+  await pausa(500);
+  ok('e devolve os nomes do KML', (await js(rotKml)) > 0);
+  await js(`window.NG.kmlOpcao('showLines', false)`);
+  await pausa(300);
+  ok('Estilos → KML sem linhas tira as linhas', (await js(kmlPane)) === 1, `${await js(kmlPane)} formas`);
+  await js(`window.NG.kmlOpcao('showLines', true)`);
+  ok('KML não é gravado no armazenamento', await js(`!('files' in JSON.parse(localStorage.getItem('neogrid.kml.v1') || '{}'))`));
   await js(`window.__clicar('data-extra=kml')`);
   ok('desligar KML tira do mapa', (await js(kmlPane)) === 0 && !(await js(`window.__marcado('data-extra=kml')`)).checked);
   ok('motor do Projeto acompanha o KML', (await js(`ativo.kmlp === false && ativo.kmll === false && ngCamadaLigada('kml') === false`)));
@@ -249,16 +305,20 @@ async function main() {
   const mt = await js(`(async () => { const a = window.NG.camadaVisivel('mt'); await window.__clicar('data-camada=mt'); const b = window.NG.camadaVisivel('mt'); const m = window.__marcado('data-camada=mt'); await window.__clicar('data-camada=mt'); return { a, b, m, c: window.NG.camadaVisivel('mt') }; })()`);
   ok('Rede MT liga e desliga pela caixa', mt.a && !mt.b && !mt.m.checked && mt.m.off && mt.c, JSON.stringify(mt));
 
-  // Escolhas continuam depois de reabrir.
+  // Escolhas continuam depois de reabrir; o KML não (é temporário).
   await js(`window.__clicar('data-extra=ruas')`);
-  await js(`window.__clicar('data-extra=kml')`);
   await js(`window.__clicar('data-extra=rotulos')`);
-  await pausa(600);
+  await js(`window.ngMapa.definirRotulo('inst', false)`);
+  await pausa(1200);   // a configuração do Projeto é gravada 600 ms depois da última mudança
   await abrir();
   for (let i = 0; i < 40 && !(await js(`document.querySelector('#mapLegend [data-extra=kml]') && typeof ativo !== 'undefined'`)); i++) await pausa(250);
   await pausa(1000);
-  const depois = await js(`({ ruas: window.__marcado('data-extra=ruas'), kml: window.__marcado('data-extra=kml'), rot: window.__marcado('data-extra=rotulos'), cfg: CFG.dxf.ruas, ligada: ruasMapa.ligada(), ativo: ativo.kmlp, kmlArq: window.__neo.kml.hasData() })`);
-  ok('escolhas continuam depois de reabrir', !depois.ruas.checked && !depois.kml.checked && !depois.rot.checked && !depois.cfg && !depois.ligada && depois.ativo === false && depois.kmlArq, JSON.stringify(depois));
+  const depois = await js(`({ ruas: window.__marcado('data-extra=ruas'), kml: window.__marcado('data-extra=kml'), rot: window.__marcado('data-extra=rotulos'), cfg: CFG.dxf.ruas, ligada: ruasMapa.ligada(), kmlArq: window.__neo.kml.hasData(), rotInst: CFG.mapa.rot.inst, aaInst: document.querySelector('#mapLegend [data-rot=inst]').getAttribute('aria-pressed') })`);
+  ok('escolhas continuam depois de reabrir', !depois.ruas.checked && !depois.rot.checked && !depois.cfg && !depois.ligada && depois.rotInst === false && depois.aaInst === 'false', JSON.stringify(depois));
+  ok('KML não volta ao reabrir', !depois.kmlArq && !depois.kml.checked, JSON.stringify(depois));
+  // Devolve o perfil de teste ao estado padrão: os outros E2E contam com o arruamento ligado.
+  await js(`window.ngMapa.definirRotulo('inst', true); window.NG.definirRotulosGerais(true); if (!CFG.dxf.ruas) window.__clicar('data-extra=ruas')`);
+  await pausa(1200);
   const indiceReaberto = await js(`(async () => { const t = performance.now(); await window.__digitar('H044357'); return { ms: Math.round(performance.now() - t), estado: window.__neo.library.searchFields.estado }; })()`);
   ok('índice é reaproveitado ao reabrir', indiceReaberto.estado === 'pronto', JSON.stringify(indiceReaberto));
 

@@ -1,5 +1,5 @@
 /* Painel de estilos, rótulos e blocos (origem: CTWeb). */
-const SP = {aba: 'poste', sub: 'ap', l: 0};
+const SP = {aba: 'camadas', sub: 'ap', l: 0};
 function mk(tag, p, ...k) {
   const e = document.createElement(tag);
   if (p) for (const [a, v] of Object.entries(p)) {
@@ -72,10 +72,58 @@ function abrirSP(aba) { if (aba) SP.aba = aba; $('#sp').hidden = false; document
 function fecharSP() { $('#sp').hidden = true; document.body.classList.remove('sp-open'); }
 function renderSP() {
   const c = $('#spc'), top = c.scrollTop; c.replaceChildren();
-  $('#spt').replaceChildren(...[['poste', 'Postes'], ['inst', 'Instalações'], ['bt', 'Rede BT'], ['mt', 'Rede MT'], ['kmlp', 'KML pontos'], ['kmll', 'KML linhas e áreas'], ['blocos', 'Blocos'], ['exp', 'DXF'], ['ger', 'Geral']]
+  const paginas = {camadas: pagCamadas, poste: pagCam, inst: pagCam, bt: pagCam, mt: pagCam, kmlp: pagCam, kmll: pagCam, ruas: pagRuas, blocos: pagBlocos, exp: pagExp, ger: pagGeral};
+  if (!paginas[SP.aba]) SP.aba = 'camadas';
+  $('#spt').replaceChildren(...[['camadas', 'Camadas'], ['poste', 'Postes'], ['inst', 'Instalações'], ['bt', 'Rede BT'], ['mt', 'Rede MT'], ['kmlp', 'KML pontos'], ['kmll', 'KML linhas e áreas'], ['ruas', 'Arruamento'], ['blocos', 'Blocos'], ['exp', 'DXF'], ['ger', 'Geral']]
     .map(([k, l]) => mk('button', {class: SP.aba === k ? 'on' : '', onclick: () => { SP.aba = k; SP.l = 0; renderSP(); }}, l)));
-  ({poste: pagCam, inst: pagCam, bt: pagCam, mt: pagCam, kmlp: pagCam, kmll: pagCam, blocos: pagBlocos, exp: pagExp, ger: pagGeral})[SP.aba](c);
+  paginas[SP.aba](c);
   c.scrollTop = top;
+}
+
+// ---------- camadas: o que aparece no mapa, num só lugar ----------
+const SP_GRUPOS = [['poste', 'Postes', 'poste'], ['inst', 'Instalações', 'inst'], ['bt', 'Rede BT', 'bt'], ['mt', 'Rede MT', 'mt'], ['kml', 'KML', 'kmlp'], ['ruas', 'Arruamento offline', 'ruas']];
+function spAtualizar() { window.NG.camadasPintar?.(); renderSP(); }
+function pagCamadas(c) {
+  const NG = window.NG, cores = ngMapa.cores(), gerais = NG.rotulosGerais();
+  c.append(mk('p', {class: 'hint'}, 'O que aparece no mapa e com que aparência. A legenda do mapa liga e desliga as mesmas opções. Camada desligada também fica fora do Projeto e da entrega.'));
+  const geral = mk('input', {type: 'checkbox'}); geral.checked = gerais;
+  geral.onchange = () => { NG.definirRotulosGerais(geral.checked); spAtualizar(); };
+  c.append(sec('Rótulos', fr('Rótulos no mapa (chave geral)', geral, 'Desligado, nenhum rótulo aparece no mapa, qualquer que seja a opção de cada camada.')));
+  const tabela = mk('div', {class: 'sp-cam'},
+    mk('span', {class: 'sp-cam-h'}, 'Camada'), mk('span', {class: 'sp-cam-h'}, 'Mostrar'), mk('span', {class: 'sp-cam-h'}, 'Rótulos'), mk('span', {class: 'sp-cam-h'}, ''));
+  for (const [g, nome, aba] of SP_GRUPOS) {
+    let mostrar;
+    if (g === 'kml' && !NG.temKml()) {
+      mostrar = mk('button', {type: 'button', title: 'O KML vale só enquanto o programa estiver aberto', onclick: () => NG.abrirKml()}, 'Importar…');
+    } else {
+      mostrar = mk('input', {type: 'checkbox', 'data-sp-mostrar': g}); mostrar.checked = g === 'kml' ? NG.kmlLigado() : ngCamadaLigada(g);
+      mostrar.onchange = async () => { await ngLigarCamada(g, mostrar.checked); spAtualizar(); };
+    }
+    const rot = mk('input', {type: 'checkbox', 'data-sp-rotulo': g, title: gerais ? '' : 'A chave geral de rótulos está desligada'}); rot.checked = ngMapa.rotuloLigado(g); rot.disabled = !gerais;
+    rot.onchange = () => { ngMapa.definirRotulo(g, rot.checked); spAtualizar(); };
+    tabela.append(mk('span', {class: 'sp-cam-n'}, mk('i', {style: `--c:${cores[g] || '#888'}`}), nome), mostrar, rot,
+      mk('button', {type: 'button', onclick: () => { SP.aba = aba; SP.sub = 'ap'; renderSP(); }}, 'Estilo…'));
+  }
+  c.append(sec('Camadas no mapa', tabela));
+  const op = NG.kmlOpcoes(), kmlChk = (k, rotulo) => {
+    const e = mk('input', {type: 'checkbox'}); e.checked = op[k];
+    e.onchange = () => { NG.kmlOpcao(k, e.checked); };
+    return fr(rotulo, e);
+  };
+  c.append(sec('KML: o que exibir', kmlChk('showPoints', 'Pontos'), kmlChk('showLines', 'Linhas'), kmlChk('showPolygons', 'Áreas / polígonos'),
+    mk('p', {class: 'hint'}, 'Vale para o mapa e para o DXF. O KML não fica salvo: ao reabrir o programa, importe de novo.'),
+    mk('button', {type: 'button', onclick: () => NG.abrirKml()}, 'Arquivos KML…')));
+}
+
+// ---------- arruamento offline no mapa ----------
+function pagRuas(c) {
+  const e = CFG.mapa.ruas, M = () => { salvar(); ruasMapa.redesenhar(); ngMapa.alterada(); };
+  c.append(mk('p', {class: 'hint'}, 'Aparência das ruas guardadas (offline) no mapa. O arruamento do DXF, com pistas e larguras, é configurado no Projeto e na aba DXF.'));
+  c.append(sec('Linhas', fr('Cor', ctl(e, 'cor', {t: 'cor'}, M)), fr('Largura (px)', ctl(e, 'larg', {t: 'num', min: .5, max: 10, step: .5}, M)),
+    fr('Opacidade', ctl(e, 'opac', {t: 'num', min: .1, max: 1, step: .05}, M))));
+  c.append(sec('Nomes das ruas', fr('Mostrar nomes', ctl(CFG.mapa.rot, 'ruas', {t: 'chk'}, () => { M(); window.NG.camadasPintar?.(); }), 'Também liga e desliga pelo botão Aa ao lado de Arruamento, na legenda.'),
+    fr('Cor dos nomes', ctl(e, 'rotCor', {t: 'cor'}, M)), fr('Zoom mínimo', ctl(e, 'rotMinZ', {t: 'num', min: 14, max: 20, step: 1}, M))));
+  c.append(mk('button', {class: 'mt', onclick: () => { CFG.mapa.ruas = cfgPadrao().mapa.ruas; M(); renderSP(); }}, 'Restaurar padrão do arruamento'));
 }
 function pagCam(c) {
   const t = SP.aba;

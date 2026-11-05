@@ -73,6 +73,9 @@ function cfgPadrao() {
     },
     lod: {on: true, zRare: 8, zMT: 12, zBT: 13.5, zRot: 14.5, palavras: 'RELIGAD,FRONTEIRA,INTERLIG,FRONT', raras: EXI + " LIKE '%RELIGAD%' OR " + EXI + " LIKE '%FRONTEIRA%' OR " + EXI + " LIKE '%INTERLIG%' OR " + EXI + " LIKE '%FRONT%'"},
     kml: {ocultos: {}},
+    // Exibição no mapa: rótulos de cada camada (a chave geral "Rótulos" vale por cima) e o arruamento offline.
+    mapa: {rot: {poste: true, inst: true, bt: true, mt: true, kml: true, ruas: true},
+      ruas: {cor: '#ff9f1c', larg: 1.5, opac: .8, rotCor: '#ffe2b8', rotMinZ: 17}},
     limites: {est: false, mun: false, estCor: '#ffd166', estW: 3, munCor: '#9aa5ad', munW: 1, munTrac: false, rot: true, rotCor: '#e6eef5'},
     geral: {lembrar: true, perguntarPasta: false, perguntarAbrir: true}
   };

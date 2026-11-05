@@ -6,7 +6,7 @@ import { library } from '../../data/library.js';
 import { LAYER_META, LAYER_TYPES } from '../../data/schema.js';
 import { toast } from '../../ui/toast.js';
 import { settings, updateSetting } from '../../core/settings.js';
-import { getKmlExportData, hasKmlData, kmlVisivel, openKmlDialogFromApp, setKmlVisible } from '../kml.js';
+import { getKmlExportData, hasKmlData, kmlOpcoes, kmlVisivel, openKmlDialogFromApp, setKmlOpcao, setKmlVisible } from '../kml.js';
 import { DEFAULT_DXF_SETTINGS, loadDxfSettings } from '../dxf/dxf-settings.js';
 
 const MOTOR = [
@@ -567,6 +567,14 @@ export function initProjeto(options) {
     },
     camadaVisivel: (tipo) => Boolean(mapView.getVisibleLayers()[tipo]),
     kmlVisivel: setKmlVisible,
+    // Estilos → Camadas: um só lugar para o que aparece no mapa.
+    kmlLigado: () => hasKmlData() && kmlVisivel(),
+    temKml: hasKmlData,
+    abrirKml: openKmlDialogFromApp,
+    kmlOpcoes,
+    kmlOpcao: setKmlOpcao,
+    rotulosGerais: () => Boolean(settings.labels),
+    definirRotulosGerais: (ligados) => updateSetting('labels', Boolean(ligados)),
     ligarCamada: (tipo, ligada) => mapView.setLayer(tipo, ligada),
     lerCamadaDS: async (tipo, bounds) => {
       const lido = await lerCamada(tipo, bounds, CAP_AREA);
@@ -637,7 +645,7 @@ export function initProjeto(options) {
     abrirSP(typeof aba === 'string' ? aba : undefined);
   });
   document.querySelectorAll('[data-estilos-abrir]').forEach((botao) => {
-    botao.addEventListener('click', () => bus.emit('labels:open'));
+    botao.addEventListener('click', () => bus.emit('labels:open', botao.dataset.estilosAbrir || undefined));
   });
   const marcarItem = (item, ligada) => {
     if (!item) return;
@@ -657,8 +665,25 @@ export function initProjeto(options) {
     // Sem arquivo carregado não há KML para mostrar, ainda que a camada esteja liberada.
     marcarItem(itemExtra('kml'), hasKmlData() && kmlVisivel());
     marcarItem(itemExtra('rotulos'), Boolean(settings.labels));
+    // Rótulos de cada camada; com a chave geral desligada, nenhum aparece.
+    document.querySelectorAll('#mapLegend [data-rot]').forEach((botao) => {
+      const ligado = window.ngMapa ? window.ngMapa.rotuloLigado(botao.dataset.rot) : true;
+      botao.setAttribute('aria-pressed', String(ligado));
+      botao.disabled = !settings.labels;
+    });
     if (typeof ngCamadasPintar === 'function') ngCamadasPintar();
+    // Estilos → Camadas aberto acompanha a legenda, sem redesenhar enquanto alguém mexe nele.
+    const painel = $('#sp');
+    if (typeof SP !== 'undefined' && SP.aba === 'camadas' && painel && !painel.hidden && !painel.contains(document.activeElement)) renderSP();
   };
+  document.querySelectorAll('#mapLegend [data-rot]').forEach((botao) => {
+    botao.addEventListener('click', async () => {
+      await carregarMotor();
+      const grupo = botao.dataset.rot;
+      window.ngMapa.definirRotulo(grupo, !window.ngMapa.rotuloLigado(grupo));
+      pintarLegenda();
+    });
+  });
   document.querySelectorAll('#mapLegend [data-camada] input').forEach((caixa) => {
     caixa.addEventListener('change', () => mapView.setLayer(caixa.closest('[data-camada]').dataset.camada, caixa.checked));
   });
@@ -690,8 +715,12 @@ export function initProjeto(options) {
   bus.on('layers:changed', pintarLegenda);
   bus.on('kml:changed', sincronizarKml);
   bus.on('settings:changed', ({ key }) => {
-    if (key === 'labels' || key === 'all') pintarLegenda();
+    if (key === 'labels' || key === 'all') {
+      pintarLegenda();
+      window.ngRuasMapa?.redesenhar();
+    }
   });
+  bus.on('estilos:changed', pintarLegenda);
   window.NG.camadasPintar = pintarLegenda;
   pintarLegenda();
   $('#navEstilos')?.addEventListener('click', async () => {

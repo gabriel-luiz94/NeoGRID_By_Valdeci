@@ -21,7 +21,7 @@ const state = {
   files: [],
   options: { ...DEFAULT_OPTIONS },
   fitOnImport: true,
-  storageWarned: false,
+  oculto: false,
 };
 
 let deps = {};
@@ -264,23 +264,16 @@ export function parseKml(text, fileName = 'arquivo.kml') {
   };
 }
 
+// O KML vale só enquanto o programa está aberto: os arquivos nunca são gravados.
+// Ficam guardadas apenas as preferências de exibição.
 function save() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      files: state.files,
       options: state.options,
       fitOnImport: state.fitOnImport,
-      oculto: Boolean(state.oculto),
     }));
   } catch {
-    if (!state.storageWarned) {
-      state.storageWarned = true;
-      toast.warning(
-        'KML grande demais para salvar',
-        'O KML continua no mapa desta sessão, mas o arquivo excede o armazenamento local. Reduza a quantidade de geometrias para persistir.',
-        { duration: 6500 },
-      );
-    }
+    /* sem armazenamento: as preferências valem nesta sessão */
   }
   bus.emit('kml:changed');
 }
@@ -288,12 +281,11 @@ function save() {
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (!raw || !Array.isArray(raw.files)) return;
-    state.files = raw.files.filter((file) => Array.isArray(file.features));
+    if (!raw) return;
     state.options = { ...DEFAULT_OPTIONS, ...(raw.options || {}) };
     state.fitOnImport = raw.fitOnImport !== false;
-    state.oculto = Boolean(raw.oculto);
-    sequence = state.files.length;
+    // Versões anteriores guardavam os arquivos: apaga para não ocupar espaço nem reaparecer.
+    if ('files' in raw || 'oculto' in raw) save();
   } catch {
     /* sem armazenamento */
   }
@@ -711,7 +703,7 @@ export function initKml(options = {}) {
   });
   document.querySelector('#kmlEstilos')?.addEventListener('click', () => {
     els.dialog?.close?.();
-    bus.emit('labels:open', 'kmlp');
+    bus.emit('labels:open', 'camadas');
   });
   bus.on('kml:manage', () => openKmlDialog());
 
@@ -776,12 +768,32 @@ export function getKmlExportData() {
 /** Liga ou desliga o KML inteiro no mapa, a partir das camadas do Projeto. */
 export function setKmlVisible(visivel) {
   state.oculto = !visivel;
-  save();
   render();
+  bus.emit('kml:changed');
 }
 
 export function kmlVisivel() {
   return !state.oculto;
+}
+
+/** O que o KML mostra (pontos, linhas, áreas), para a tela de Estilos. */
+export function kmlOpcoes() {
+  return {
+    showPoints: state.options.showPoints !== false,
+    showLines: state.options.showLines !== false,
+    showPolygons: state.options.showPolygons !== false,
+  };
+}
+
+export function setKmlOpcao(chave, valor) {
+  if (!['showPoints', 'showLines', 'showPolygons'].includes(chave)) return;
+  state.options[chave] = Boolean(valor);
+  persistOptions();
+}
+
+/** Redesenha o KML (rótulos ligados ou desligados em Estilos). */
+export function redesenharKml() {
+  if (state.files.length) render();
 }
 
 export function hasKmlData() {
