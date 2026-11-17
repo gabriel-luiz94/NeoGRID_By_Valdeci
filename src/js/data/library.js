@@ -200,6 +200,7 @@ class Library {
   searchIds(query, limit = 12) {
     const term = String(query || '').trim();
     if (term.length < 3) return [];
+    const alvo = term.toUpperCase();
     const key = term.slice(0, 3).toUpperCase();
     const results = [];
     for (const type of ['poste', 'inst', 'bt', 'mt']) {
@@ -212,20 +213,22 @@ class Library {
         seen.add(index);
         const row = store.rows[index];
         const id = store.idx.id >= 0 ? String(row[store.idx.id] ?? '').trim() : '';
-        if (!id || !id.toLowerCase().startsWith(term.toLowerCase())) continue;
+        if (!id || !id.toUpperCase().startsWith(alvo)) continue;
+        const exacto = id.toUpperCase() === alvo;
         results.push({
           type,
           index,
           id,
           label: id,
           subtitle: featureSubtitle(store, index),
-          exact: id.toLowerCase() === term.toLowerCase(),
+          exact: exacto,
+          rank: exacto ? 0 : 1,
         });
         if (results.length >= limit * 2) break;
       }
     }
     // Sem base SQLite não há índice: os campos são percorridos nas linhas em memória.
-    const alvo = term.toUpperCase();
+    // O termo vale em qualquer posição do valor (ex.: "44357" acha "H044357").
     for (const [type, nomes, campo] of CAMPOS_BUSCA) {
       const store = this.stores[type];
       if (!store || !store.stats.count) continue;
@@ -233,7 +236,10 @@ class Library {
       if (coluna === undefined) continue;
       for (let index = 0; index < store.rows.length && results.length < limit * 4; index += 1) {
         const valor = String(store.rows[index]?.[coluna] ?? '').trim();
-        if (!valor || !valor.toUpperCase().startsWith(alvo)) continue;
+        if (!valor) continue;
+        const upper = valor.toUpperCase();
+        if (!upper.includes(alvo)) continue;
+        const exacto = upper === alvo;
         results.push({
           type,
           index,
@@ -242,12 +248,13 @@ class Library {
           campo,
           codigo: store.idx.id >= 0 ? String(store.rows[index][store.idx.id] ?? '').trim() : '',
           subtitle: featureSubtitle(store, index),
-          exact: valor.toUpperCase() === alvo,
+          exact: exacto,
+          rank: exacto ? 0 : upper.startsWith(alvo) ? 1 : 2,
         });
       }
     }
     results.sort((a, b) => {
-      if (a.exact !== b.exact) return a.exact ? -1 : 1;
+      if ((a.rank ?? 2) !== (b.rank ?? 2)) return (a.rank ?? 2) - (b.rank ?? 2);
       if (a.id.length !== b.id.length) return a.id.length - b.id.length;
       return a.id.localeCompare(b.id, 'pt-BR', { numeric: true });
     });
@@ -275,7 +282,8 @@ class Library {
           campo: hit.campo,
           codigo: hit.id,
           subtitle: featureSubtitle(store, hit.i),
-          exact: hit.valor === term.toUpperCase(),
+          exact: hit.valor.toUpperCase() === term.toUpperCase(),
+          rank: hit.valor.toUpperCase() === term.toUpperCase() ? 0 : hit.valor.toUpperCase().startsWith(term.toUpperCase()) ? 1 : 2,
         });
       }
     } catch (erro) {
@@ -302,12 +310,13 @@ class Library {
           label: hit.id,
           subtitle: featureSubtitle(store, hit.i),
           exact: hit.id.toLowerCase() === term.toLowerCase(),
+          rank: hit.id.toLowerCase() === term.toLowerCase() ? 0 : hit.id.toLowerCase().startsWith(term.toLowerCase()) ? 1 : 2,
         });
         if (results.length >= limit * 2) break;
       }
     }
     results.sort((a, b) => {
-      if (a.exact !== b.exact) return a.exact ? -1 : 1;
+      if ((a.rank ?? 2) !== (b.rank ?? 2)) return (a.rank ?? 2) - (b.rank ?? 2);
       if (a.id.length !== b.id.length) return a.id.length - b.id.length;
       return a.id.localeCompare(b.id, 'pt-BR', { numeric: true });
     });

@@ -2,6 +2,8 @@ import { $, $$, openDialog } from './core/dom.js';
 import { bus } from './core/bus.js';
 import { fmtInt, fmtKm } from './core/format.js';
 import { applyAppearance, settings } from './core/settings.js';
+import { initAuth } from './core/auth.js';
+import { startUpdater } from './core/updater.js';
 import { library } from './data/library.js';
 import { LAYER_META } from './data/schema.js';
 import { featureTitle } from './data/labels.js';
@@ -331,9 +333,19 @@ function bindGlobalErrors() {
   });
 }
 
-function init() {
+async function init() {
   applyAppearance({ notify: false });
   document.documentElement.dataset.platform = window.desktop?.platform || 'web';
+
+  // Login (Supabase) antes de qualquer dado entrar em memória. Em `?test=1`
+  // o auth devolve uma sessão fictícia para os testes automatizados.
+  let auth = null;
+  try {
+    auth = await initAuth();
+  } catch (error) {
+    console.error('[auth]', error);
+  }
+  if (!auth && document.querySelector('#authGate')) return;
 
   mapView = new MapView({
     navigate: (view) => setPage(view),
@@ -358,6 +370,7 @@ function init() {
   initExports();
   wireCsvExport();
   initSettings();
+  startUpdater();
   initFieldDialogs();
   initDbBuildDialog();
   search.init({ mapView });

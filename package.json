@@ -14,6 +14,7 @@
     "app:install": "powershell -ExecutionPolicy Bypass -File rust/scripts/build-app.ps1 -Install",
     "app:exe": "powershell -ExecutionPolicy Bypass -File rust/scripts/build-app.ps1 -Bundle none",
     "app:release-run": "powershell -ExecutionPolicy Bypass -File rust/scripts/run-app.ps1 -Profile release",
+    "release": "powershell -ExecutionPolicy Bypass -File rust/scripts/release.ps1",
     "core:test": "cd rust && cargo test --target x86_64-pc-windows-gnu --workspace",
     "core:build": "cd rust && cargo build --release --target x86_64-pc-windows-gnu --workspace",
     "core:parity": "node rust/parity/contract-check.js",

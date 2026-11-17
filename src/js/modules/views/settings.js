@@ -1,6 +1,15 @@
 import { bus } from '../../core/bus.js';
 import { library } from '../../data/library.js';
 import { settings, updateSetting, resetPreferences, applyAppearance } from '../../core/settings.js';
+import {
+  getUpdateState,
+  checkForUpdates,
+  installUpdate,
+  openReleasePage,
+  setAutoUpdate,
+  formatBytes,
+  formatCheckedAt,
+} from '../../core/updater.js';
 import { BASEMAPS } from '../map/basemaps.js';
 import { fmtInt, fmtKm } from '../../core/format.js';
 import { toast } from '../../ui/toast.js';
@@ -26,6 +35,7 @@ function sync() {
   const autosave = document.querySelector('#settingsAutosave');
   if (autosave) autosave.checked = settings.autosave !== false;
   updateData();
+  syncUpdates();
 }
 
 function updateData() {
@@ -79,6 +89,119 @@ async function resetAll() {
   toast.success('Preferências restauradas', 'O ambiente voltou à configuração padrão.');
 }
 
+function phaseLabel(update) {
+  if (update.phase === 'check') return 'Consultando o GitHub…';
+  if (update.phase === 'verify') return 'Conferindo o instalador…';
+  if (update.phase === 'ready') return 'Instalador pronto, aplicando…';
+  if (update.phase === 'download') {
+    const size = update.total
+      ? ` · ${formatBytes(update.downloaded)} de ${formatBytes(update.total)}`
+      : '';
+    return `Baixando instalador · ${update.progress || 0}%${size}`;
+  }
+  return '';
+}
+
+function syncUpdates(update = getUpdateState()) {
+  if (!els.updateCurrent) return;
+
+  if (update.current) {
+    els.updateCurrent.textContent = update.installed === false
+      ? `NeoGrid ${update.current} · cópia de desenvolvimento`
+      : `NeoGrid ${update.current} · instalado neste computador`;
+  } else {
+    els.updateCurrent.textContent = update.supported
+      ? 'NeoGrid · versão não informada'
+      : 'Disponível apenas no aplicativo desktop';
+  }
+
+  let badge = '—';
+  let variant = 'badge-soft';
+  if (!update.supported) {
+    badge = 'Somente desktop';
+  } else if (update.installing) {
+    badge = 'Instalando…';
+    variant = 'badge-warning';
+  } else if (update.checking) {
+    badge = 'Verificando…';
+  } else if (update.available) {
+    badge = `v${update.latest?.version || '?'} disponível`;
+    variant = 'badge-warning';
+  } else if (update.error) {
+    badge = 'Falha';
+    variant = 'badge-danger';
+  } else if (update.checkedAt) {
+    badge = 'Em dia';
+    variant = 'badge-success';
+  }
+  if (els.updateBadge) {
+    els.updateBadge.textContent = badge;
+    els.updateBadge.className = `badge ${variant}`;
+  }
+
+  if (els.autoUpdate) {
+    els.autoUpdate.checked = settings.autoUpdate !== false;
+    els.autoUpdate.disabled = !update.supported;
+  }
+
+  let status = 'Ainda não verificada.';
+  if (!update.supported) {
+    status = 'A verificação automática funciona na versão instalada do NeoGrid.';
+  } else if (update.checking) {
+    status = 'Consultando o GitHub…';
+  } else if (update.error) {
+    status = update.error;
+  } else if (update.available) {
+    const published = update.latest?.publishedAt
+      ? ` · publicado em ${formatCheckedAt(Date.parse(update.latest.publishedAt))}`
+      : '';
+    status = `Versão ${update.latest?.version} disponível${published}.`;
+  } else if (update.message) {
+    status = update.message;
+  } else if (update.checkedAt) {
+    status = `Última verificação: ${formatCheckedAt(update.checkedAt)}.`;
+  }
+  if (els.updateStatus) els.updateStatus.textContent = status;
+
+  if (els.updateAvailableRow) els.updateAvailableRow.hidden = !update.available;
+  if (els.updateAvailableTitle && update.latest) {
+    els.updateAvailableTitle.textContent = `NeoGrid ${update.latest.version}`;
+  }
+  if (els.updateAvailableNotes) {
+    const notes = String(update.latest?.notes || '').replace(/[#*_`>]/g, '').trim();
+    const fallback = update.latest?.asset?.size
+      ? `Instalador de ${formatBytes(update.latest.asset.size)}.`
+      : 'Instalador do Windows (NSIS).';
+    els.updateAvailableNotes.textContent = notes ? notes.slice(0, 260) : fallback;
+  }
+
+  const busy = Boolean(update.installing);
+  if (els.updateInstall) {
+    els.updateInstall.disabled = busy;
+    els.updateInstall.textContent = busy ? 'Instalando…' : 'Instalar e reiniciar';
+  }
+  if (els.updateCheck) {
+    els.updateCheck.disabled = !update.supported || update.checking || busy;
+  }
+
+  if (els.updateProgressWrap) {
+    els.updateProgressWrap.hidden = !busy;
+    if (els.updateProgressBar) {
+      const percent = Math.max(0, Math.min(100, Number(update.progress) || 0));
+      els.updateProgressBar.style.width = `${percent}%`;
+    }
+    if (els.updateProgressText) els.updateProgressText.textContent = phaseLabel(update);
+  }
+
+  if (els.updateInstallHint) {
+    const dev = update.supported && update.installed === false && update.available;
+    els.updateInstallHint.hidden = !dev;
+    if (dev) {
+      els.updateInstallHint.textContent = `Esta cópia é uma build de desenvolvimento. A atualização será aplicada em ${update.installDir || '%LOCALAPPDATA%\\NeoGrid'}.`;
+    }
+  }
+}
+
 export function initSettings() {
   els = {
     compact: document.querySelector('#compactDensity'),
@@ -92,6 +215,20 @@ export function initSettings() {
     dataSummary: document.querySelector('#settingsDataSummary'),
     dataBadge: document.querySelector('#settingsDataBadge'),
     clear: document.querySelector('#settingsClearData'),
+    updateCurrent: document.querySelector('#updateCurrent'),
+    updateBadge: document.querySelector('#updateBadge'),
+    updateStatus: document.querySelector('#updateStatusText'),
+    updateAvailableRow: document.querySelector('#updateAvailableRow'),
+    updateAvailableTitle: document.querySelector('#updateAvailableTitle'),
+    updateAvailableNotes: document.querySelector('#updateAvailableNotes'),
+    updateInstall: document.querySelector('#updateInstall'),
+    updateReleasePage: document.querySelector('#updateReleasePage'),
+    updateCheck: document.querySelector('#updateCheck'),
+    updateProgressWrap: document.querySelector('#updateProgressWrap'),
+    updateProgressBar: document.querySelector('#updateProgressBar'),
+    updateProgressText: document.querySelector('#updateProgressText'),
+    updateInstallHint: document.querySelector('#updateInstallHint'),
+    autoUpdate: document.querySelector('#settingsAutoUpdate'),
   };
   if (!document.querySelector('#themeSegmented')) return;
 
@@ -125,8 +262,14 @@ export function initSettings() {
   els.clear?.addEventListener('click', clearData);
   document.querySelector('#settingsResetPrefs')?.addEventListener('click', resetAll);
 
+  els.autoUpdate?.addEventListener('change', () => setAutoUpdate(els.autoUpdate.checked));
+  els.updateCheck?.addEventListener('click', () => { checkForUpdates(); });
+  els.updateInstall?.addEventListener('click', () => { installUpdate(); });
+  els.updateReleasePage?.addEventListener('click', () => { openReleasePage(); });
+
   bus.on('settings:changed', sync);
   bus.on('data:changed', updateData);
+  bus.on('update:state', syncUpdates);
   sync();
 
   window.desktop?.appInfo?.().then((info) => {

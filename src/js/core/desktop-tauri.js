@@ -61,6 +61,21 @@ import { listen } from '../../vendor/tauri/event.js';
       }),
       revealFile: (filePath) => invoke('file_reveal', { path: filePath || null }),
       appInfo: () => invoke('app_info'),
+      authRequest: (payload) => invoke('auth_request', {
+        method: (payload && payload.method) || 'GET',
+        url: (payload && payload.url) || '',
+        path: (payload && payload.path) || '',
+        body: (payload && payload.body != null) ? payload.body : null,
+        apikey: (payload && payload.apikey) || '',
+        token: (payload && payload.token) || null,
+      }),
+      updateCheck: () => invoke('update_check'),
+      updateInstall: () => invoke('update_install'),
+      onUpdateProgress: (listener) => {
+        listen('update:progress', (event) => {
+          try { listener(event && event.payload !== undefined ? event.payload : event); } catch { /* listener do app */ }
+        });
+      },
       setOverlayTheme: (theme) => invoke('window_overlay_theme', { theme: theme || null }),
       openExternal: (url) => invoke('app_open_external', { url: url || null }),
       projectStatus: () => invoke('project_status'),

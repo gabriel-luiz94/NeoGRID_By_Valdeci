@@ -8,6 +8,7 @@
 
 mod commands;
 mod serve;
+mod updater;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -82,6 +83,9 @@ fn main() {
         commands::file_reveal,
         commands::app_open_external,
         commands::app_info,
+        commands::auth_request,
+        commands::update_check,
+        commands::update_install,
         commands::window_overlay_theme,
         commands::net_fetch_text,
         commands::db_area,

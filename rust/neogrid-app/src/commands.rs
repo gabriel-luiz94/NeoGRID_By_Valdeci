@@ -201,7 +201,7 @@ pub fn db_close(state: tauri::State<DbState>) -> serde_json::Value {
 
 // Comandos síncronos do Tauri rodam na thread da janela: qualquer espera aqui vira
 // "não está respondendo". Por isso banco e rede vão para `spawn_blocking`.
-async fn fora_da_janela<T: Send + 'static>(
+pub(crate) async fn fora_da_janela<T: Send + 'static>(
     trabalho: impl FnOnce() -> T + Send + 'static,
     falha: impl FnOnce(String) -> T,
 ) -> T {
@@ -867,7 +867,7 @@ fn proxy_do_registro() -> Option<String> {
     None
 }
 
-fn http_agent(timeout: std::time::Duration) -> ureq::Agent {
+pub(crate) fn http_agent(timeout: std::time::Duration) -> ureq::Agent {
     let config = ureq::Agent::config_builder()
         .timeout_global(Some(timeout))
         .http_status_as_error(false)
@@ -1280,6 +1280,150 @@ pub fn app_info(app: tauri::AppHandle) -> serde_json::Value {
     })
 }
 
+// ---- Login (Supabase Auth) ----
+
+/// Só aceita URL de projeto Supabase: o command não pode virar proxy aberto.
+fn auth_url(base: &str, path: &str) -> Result<String, String> {
+    let host = base
+        .trim()
+        .trim_end_matches('/')
+        .strip_prefix("https://")
+        .ok_or("A URL do Supabase precisa começar com https://")?
+        .split('/')
+        .next()
+        .unwrap_or("");
+    if host.is_empty() || host.contains('@') || host.contains(':') {
+        return Err("Host do Supabase inválido.".to_string());
+    }
+    if !(host.ends_with(".supabase.co") || host.ends_with(".supabase.in")) {
+        return Err("Use a URL do projeto Supabase (…supabase.co).".to_string());
+    }
+    let path = path.trim_start_matches('/');
+    if !path.starts_with("auth/v1/") || path.contains("..") {
+        return Err("Caminho de autenticação inválido.".to_string());
+    }
+    Ok(format!("https://{host}/{path}"))
+}
+
+fn auth_request_sync(
+    method: &str,
+    base: &str,
+    path: &str,
+    body: Option<serde_json::Value>,
+    apikey: &str,
+    token: Option<&str>,
+) -> serde_json::Value {
+    if apikey.trim().is_empty() {
+        return serde_json::json!({"ok": false, "status": 0, "error": "Chave pública do Supabase ausente."});
+    }
+    let url = match auth_url(base, path) {
+        Ok(url) => url,
+        Err(error) => return serde_json::json!({"ok": false, "status": 0, "error": error}),
+    };
+    let metodo = method.trim().to_ascii_uppercase();
+    let agent = http_agent(std::time::Duration::from_secs(20));
+    let autorizacao = token.filter(|t| !t.is_empty()).map(|t| format!("Bearer {t}"));
+    let resposta = match metodo.as_str() {
+        "GET" => {
+            let mut req = agent.get(&url).header("apikey", apikey).header("Accept", "application/json");
+            if let Some(header) = autorizacao.as_deref() {
+                req = req.header("Authorization", header);
+            }
+            req.call()
+        }
+        "POST" => {
+            let mut req = agent
+                .post(&url)
+                .header("apikey", apikey)
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json");
+            if let Some(header) = autorizacao.as_deref() {
+                req = req.header("Authorization", header);
+            }
+            req.send(body.unwrap_or_else(|| serde_json::json!({})).to_string())
+        }
+        _ => return serde_json::json!({"ok": false, "status": 0, "error": "Método não suportado."}),
+    };
+    let resposta = match resposta {
+        Ok(resposta) => resposta,
+        Err(error) => {
+            return serde_json::json!({"ok": false, "status": 0, "error": format!("conexão com o Supabase: {error}")})
+        }
+    };
+    let status = resposta.status().as_u16();
+    let texto = match resposta.into_body().read_to_string() {
+        Ok(texto) => texto,
+        Err(error) => {
+            return serde_json::json!({"ok": false, "status": status, "error": format!("resposta do Supabase: {error}")})
+        }
+    };
+    let data = serde_json::from_str::<serde_json::Value>(&texto).unwrap_or_else(|_| serde_json::json!({"msg": texto}));
+    serde_json::json!({"ok": (200..300).contains(&status), "status": status, "data": data})
+}
+
+/// Login/refresh/logout do Supabase pelo Rust: usa o proxy do Windows e não
+/// depende de CORS do WebView.
+#[tauri::command(rename_all = "camelCase")]
+pub async fn auth_request(
+    method: String,
+    url: String,
+    path: String,
+    body: Option<serde_json::Value>,
+    apikey: String,
+    token: Option<String>,
+) -> serde_json::Value {
+    fora_da_janela(
+        move || auth_request_sync(&method, &url, &path, body, &apikey, token.as_deref()),
+        |error| serde_json::json!({"ok": false, "status": 0, "error": error}),
+    )
+    .await
+}
+
+// ---- Atualização automática (GitHub Releases) ----
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn update_check(app: tauri::AppHandle) -> serde_json::Value {
+    let current = app.package_info().version.to_string();
+    let fallback = current.clone();
+    let mut value = fora_da_janela(
+        move || crate::updater::check(&current),
+        move |error| crate::updater::failure(&fallback, &error),
+    )
+    .await;
+    if let Some(map) = value.as_object_mut() {
+        // Contexto local (caminho do exe, se é a cópia instalada).
+        for (key, item) in crate::updater::context() {
+            map.insert(key, item);
+        }
+    }
+    value
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn update_install(app: tauri::AppHandle) -> serde_json::Value {
+    let current = app.package_info().version.to_string();
+    let worker = app.clone();
+    let result = fora_da_janela(
+        move || crate::updater::install(&worker, &current),
+        |error| Err::<PathBuf, String>(error),
+    )
+    .await;
+    let installer = match result {
+        Ok(path) => path,
+        Err(error) => return serde_json::json!({"ok": false, "error": error}),
+    };
+    if let Err(error) = crate::updater::launch(&installer) {
+        return serde_json::json!({"ok": false, "error": error});
+    }
+    // O instalador só consegue trocar o .exe depois que este processo sair.
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        handle.exit(0);
+    });
+    serde_json::json!({"ok": true, "path": installer.to_string_lossy()})
+}
+
 #[tauri::command(rename_all = "camelCase")]
 pub fn window_overlay_theme(window: tauri::Window, theme: Option<serde_json::Value>) -> bool {
     // No Windows o overlay usa as cores do sistema; aplica o estilo e ignora
@@ -1448,5 +1592,38 @@ mod tests {
             prog,
             serde_json::json!({"type": "scan-progress", "layer": "mt", "file": "b.csv", "bytes": 50, "totalBytes": 100})
         );
+    }
+
+    #[test]
+    fn auth_url_so_aceita_supabase() {
+        assert!(auth_url("https://abc.supabase.co", "auth/v1/token?grant_type=password").is_ok());
+        assert!(auth_url("https://abc.supabase.co/", "/auth/v1/user").is_ok());
+        for (base, path) in [
+            ("http://abc.supabase.co", "auth/v1/token"),
+            ("https://evil.com", "auth/v1/token"),
+            ("https://abc.supabase.co", "rest/v1/poste"),
+            ("https://abc.supabase.co", "auth/v1/../x"),
+            ("https://user@abc.supabase.co", "auth/v1/token"),
+        ] {
+            assert!(auth_url(base, path).is_err(), "{base} {path}");
+        }
+    }
+
+    /// Rede real: valida que o caminho Rust (ureq + proxy do Windows) alcança
+    /// o Supabase. Rodar com `cargo test … auth_network_real -- --ignored`.
+    #[test]
+    #[ignore = "consulta a rede (Supabase do NeoGrid)"]
+    fn auth_network_real() {
+        let key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0b2xoeWhxam5vdm56Z3RsYmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ0MDkyNTQsImV4cCI6MjEwOTk4NTI1NH0.7-CCWH_SD2V94Kl3n6NSC2adjCsePWkyMJzf7GSVzzY";
+        let resposta = auth_request_sync(
+            "POST",
+            "https://rtolhyhqjnovnzgtlbkj.supabase.co",
+            "auth/v1/token?grant_type=password",
+            Some(serde_json::json!({"email": "naoexiste@exemplo.invalid", "password": "x"})),
+            key,
+            None,
+        );
+        assert_eq!(resposta["status"], 400, "{resposta}");
+        assert_eq!(resposta["data"]["error_code"], "invalid_credentials", "{resposta}");
     }
 }

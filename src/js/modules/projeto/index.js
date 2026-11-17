@@ -581,6 +581,8 @@ export function initProjeto(options) {
       return montarDS(tipo, lido.h, lido.rows, false);
     },
     camadaTemDados: (tipo) => Boolean(library.get(tipo)?.stats.count),
+    /** Colunas da camada carregada: a lista de campos do rótulo funciona sem marcar área. */
+    campos: (tipo) => library.get(tipo)?.headers || [],
     avisoRuasMapa: (texto) => {
       if (texto) mapView.showNotice(texto, 'ruas-mapa');
       else mapView.hideNotice();

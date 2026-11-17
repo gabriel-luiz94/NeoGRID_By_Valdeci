@@ -5,11 +5,20 @@ import { $, closeDialog, openDialog } from '../core/dom.js';
 import { esc, fmtBytes, fmtInt } from '../core/format.js';
 import { toast } from '../ui/toast.js';
 import { confirmAction } from '../ui/confirm.js';
+import { requirePermission } from '../core/auth.js';
 
 const WARN_TOTAL_BYTES = 150 * 1024 * 1024;
 const HARD_TOTAL_BYTES = 600 * 1024 * 1024;
 const WARN_TOTAL_ROWS = 450000;
 const HARD_TOTAL_ROWS = 950000;
+
+/** Projetos `.neogrid` são leitura para qualquer perfil; CSV/base exige permissão. */
+function allowedToLoad(files) {
+  const list = [...(files || [])];
+  const onlyProjects = list.length > 0 && list.every((file) => /\.neogrid$/i.test(file.name));
+  if (onlyProjects) return true;
+  return requirePermission('data:import', 'importar dados');
+}
 
 async function estimateFileRows(file) {
   try {
@@ -161,6 +170,7 @@ async function addFiles(files) {
     return;
   }
   const all = [...files];
+  if (!allowedToLoad(all)) return;
   const projects = all.filter((file) => /\.neogrid$/i.test(file.name));
   if (projects.length) {
     closeImport();
@@ -218,6 +228,7 @@ function clearEntries() {
 }
 
 function openImport(files = null) {
+  if (!allowedToLoad(files)) return;
   if (files?.length) {
     if ([...files].some((file) => /\.neogrid$/i.test(file.name))) {
       addFiles(files);

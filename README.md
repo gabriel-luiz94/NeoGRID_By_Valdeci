@@ -58,12 +58,83 @@ nenhum servidor.
 > SmartScreen, o Windows pode exibir um aviso na primeira execução; nesse caso,
 > use **Mais informações → Executar assim mesmo**.
 
+### Atualizações automáticas
+
+A cópia instalada verifica o GitHub **ao abrir e a cada 6 horas**:
+
+1. consulta `releases/latest` do repositório `gabriel-luiz94/NeoGRID_By_Valdeci`;
+2. compara a versão publicada com a instalada;
+3. se houver versão nova, avisa no canto e mostra o cartão **Configurações → Atualizações**;
+4. ao confirmar, baixa o `*setup.exe` anexado à release (~7 MB), fecha o app e
+   aplica o instalador em modo silencioso (`/S`) — instalação por usuário.
+
+As bases, projetos e preferências ficam em `%APPDATA%\br.com.neogrid.desktop` e
+não são afetadas pela atualização. Cópias de desenvolvimento (rodando de
+`rust/target/...`) também verificam, mas o cartão avisa que a atualização será
+aplicada em `%LOCALAPPDATA%\NeoGrid`.
+
+Para publicar uma versão:
+
+```powershell
+.\rust\scripts\release.ps1 -Version 3.0.1 -Notes "Corrige rótulos por camada"
+# ou: npm run release -- -Version 3.0.1
+```
+
+O script atualiza a versão em `package.json`, `Cargo.toml` e `tauri.conf.json`,
+gera o instalador NSIS, commita, cria a tag `v3.0.1`, envia para o GitHub e
+publica a release com o instalador anexado (usa `gh` ou `GITHUB_TOKEN`). Sem
+nenhum dos dois, ele para com o link para anexar o arquivo manualmente.
+
+> O atualizador não usa assinatura digital: a confiança vem do HTTPS e do
+> repositório fixo no código. Quem puder publicar releases nesse repositório
+> pode distribuir um instalador — proteja o acesso ao GitHub.
+
+### Login e perfis (Supabase)
+
+O app pede login antes de carregar qualquer dado. As contas são as do
+**Supabase Auth** (e-mail + senha), não uma tabela própria. O login já aponta
+para o projeto `rtolhyhqjnovnzgtlbkj.supabase.co` (URL e chave `anon` em
+`src/js/core/auth-config.js`; as chamadas saem pelo Rust, usando o proxy do
+Windows e sem depender de CORS do WebView):
+
+1. Para apontar para outro projeto, edite `SUPABASE_URL`/`SUPABASE_ANON_KEY`
+   em `src/js/core/auth-config.js` e recompile — ou abra **Conexão** na tela de
+   login e cole os dois valores (fica salvo só naquele computador).
+2. Em **Authentication → Users**, crie/confirme os usuários.
+3. Defina o perfil em `app_metadata.role` (`admin`, `operador` ou `leitor`).
+   `user_metadata.role` também é aceito, por compatibilidade. Pelo SQL editor:
+
+```sql
+update auth.users
+set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
+where email = 'fulano@neoenergia.com';
+```
+
+   O novo perfil vale no próximo login (ou renovação da sessão).
+
+| Perfil | Pode |
+|---|---|
+| `admin` | tudo: importar, gerar base, exportar, limpar base, restaurar preferências |
+| `operador` | importar, gerar base, exportar, projeto, atualizações |
+| `leitor` | visualizar, exportar e abrir projeto `.neogrid` |
+
+A sessão é renovada em segundo plano. Sem internet, a última sessão validada
+continua valendo por **7 dias**; depois disso o app volta a pedir login.
+
+> O login protege a **interface** do app, não os dados: o NeoGrid roda local e
+> não tem servidor. Regras de acesso a dados de verdade precisam estar no RLS
+> do Supabase. Nunca guarde senhas numa tabela comum — use `auth.users`.
+
+Nos testes automatizados (`?test=1`) o login é dispensado com um usuário
+fictício `admin`, para os e2e continuarem rodando sem rede.
+
 ### Requisitos de build
 
 - Rust (toolchain `x86_64-pc-windows-gnu`) + [w64devkit](https://github.com/skeeto/w64devkit)
   para o linker (com MSVC Build Tools instalado, o alvo `msvc` dispensa o
   w64devkit e o workaround de `resource.lib`). Nada exige administrador.
 - NSIS para gerar o instalador.
+- GitHub CLI (`gh`) ou `GITHUB_TOKEN` apenas para publicar releases.
 - Os caminhos são resolvidos por `rust/scripts/env.ps1`: variáveis
   `NEOGRID_W64DEVKIT`, `NEOGRID_NSIS` e `NEOGRID_NODE` ou, por padrão,
   `%LOCALAPPDATA%\neogrid-tools\{w64devkit,nsis,node}`.
@@ -125,13 +196,13 @@ Ao gerar a base, as pastas abaixo da origem viram a coluna `REGIONAL`. A base po
 - **Ruas guardadas** como camada de consulta: mostra o que está no pacote de ruas ou já foi baixado, sem acessar a internet.
 - **KML** com pontos, linhas, áreas e nomes, com escolha do que aparece e navegação até o arquivo.
 - Rótulos com desvio de colisão, priorização e exibição a partir do zoom configurado.
-- Construtor de rótulos por camada: escolha os campos de postes, instalações, BT e MT sem digitar modelos; a mesma configuração vale para o mapa e o DXF.
+- Construtor de rótulos por camada: escolha um ou vários campos de postes, instalações, BT e MT em uma lista (com exemplo de valor), escolha o separador e insira no texto sem digitar modelos; a mesma configuração vale para o mapa e o DXF.
 - Substituições de anotação: troque valores ou trechos do rótulo por padrões (ex.: trechos cujo nome contém `LIG` viram `Ligação`).
 - Detalhes do ativo em painel lateral, com atributos, vínculos e equipamentos relacionados.
 - Painel de camadas recolhível e detalhes sob demanda para manter o mapa limpo.
 - Clique em ativos sobrepostos mostra uma lista para escolher o elemento correto.
 - Escala calculada em tempo real, barra de escala, norte, tela cheia e transparência do fundo.
-- Busca global por ID de poste, instalação ou trecho, barramento (`DE_BARRAMENTO`), placa (`DE_PLACA`), coordenada ou endereço (OSM/Nominatim/Photon). Coordenadas aceitam graus decimais, graus e minutos e UTM no formato do Google Earth (`25M 291443 9108420`). Códigos e coordenadas não vão para os serviços de endereço nas sugestões automáticas. A busca por barramento e placa usa um índice próprio (cerca de 50 MB nos dados do app), gerado sozinho na primeira abertura de cada base, sem alterar a base.
+- Busca global por ID de poste, instalação ou trecho, barramento (`DE_BARRAMENTO`), placa (`DE_PLACA`), coordenada ou endereço (OSM/Nominatim/Photon). Barramento e placa aceitam **qualquer trecho do valor** (digitar `44357` acha `H044357`), com o valor exato e o começo do código primeiro. Coordenadas aceitam graus decimais, graus e minutos e UTM no formato do Google Earth (`25M 291443 9108420`). Códigos e coordenadas não vão para os serviços de endereço nas sugestões automáticas. A busca por barramento e placa usa um índice próprio (cerca de 50 MB nos dados do app), gerado sozinho na primeira abertura de cada base, sem alterar a base.
 
 ### Importação
 - Leitura em **Web Worker** com envio por lotes, evitando travar a interface.

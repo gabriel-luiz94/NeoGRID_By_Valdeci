@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/map.css">
   <link rel="stylesheet" href="css/views.css">
   <link rel="stylesheet" href="css/projeto.css">
+  <link rel="stylesheet" href="css/auth.css">
   <style id="printPageCss"></style>
 </head>
 <body>
@@ -101,6 +102,21 @@
     </div>
     <div class="titlebar-right">
       <span class="titlebar-chip"><svg class="icon"><use href="#i-shield"/></svg> 100% local</span>
+      <div class="user-slot">
+        <button class="titlebar-chip titlebar-user" id="userChip" type="button" hidden>
+          <span class="user-avatar" id="userAvatar">—</span>
+          <span class="user-name" id="userName">—</span>
+        </button>
+        <div class="user-menu" id="userMenu" hidden>
+          <div class="user-menu-head">
+            <strong id="userMenuName">—</strong>
+            <span id="userMenuRole">—</span>
+          </div>
+          <button type="button" id="userMenuSignOut">
+            <svg class="icon"><use href="#i-lock"/></svg> Sair da conta
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -205,7 +221,7 @@
 
         <div class="topbar-search" id="searchWrap">
           <svg class="icon search-icon"><use href="#i-search"/></svg>
-          <input id="globalSearch" type="search" placeholder="Buscar poste, barramento, endereço ou coordenada…" autocomplete="off" spellcheck="false" aria-label="Buscar ativos e endereços">
+          <input id="globalSearch" type="search" placeholder="Buscar poste, barramento, placa, endereço ou coordenada." autocomplete="off" spellcheck="false" aria-label="Buscar ativos, barramento, placa e endereços">
           <kbd class="search-kbd">Ctrl K</kbd>
           <div class="search-results" id="searchResults" hidden></div>
         </div>
@@ -704,8 +720,47 @@
 
               <article class="card settings-card">
                 <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-download"/></svg></div>
+                  <div><h3>Atualizações</h3><p>Baixa e instala novas versões publicadas no GitHub.</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Versão instalada</strong><small id="updateCurrent">Verificando…</small></div>
+                  <span class="badge badge-soft" id="updateBadge">—</span>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Verificar automaticamente</strong><small>Consulta ao abrir o aplicativo e a cada 6 horas.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="settingsAutoUpdate" class="switch" checked><span>Ativada</span></label>
+                </div>
+                <div class="setting-row" id="updateAvailableRow" hidden>
+                  <div><strong id="updateAvailableTitle">Atualização disponível</strong><small id="updateAvailableNotes" class="update-notes"></small></div>
+                  <div class="setting-actions">
+                    <button class="btn btn-soft btn-sm" id="updateInstall" type="button">Instalar e reiniciar</button>
+                    <button class="btn btn-ghost btn-sm" id="updateReleasePage" type="button">Ver no GitHub</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Verificação</strong><small id="updateStatusText">Ainda não verificada.</small></div>
+                  <div class="setting-actions">
+                    <button class="btn btn-ghost btn-sm" id="updateCheck" type="button">
+                      <svg class="icon"><use href="#i-refresh"/></svg> Verificar agora
+                    </button>
+                  </div>
+                </div>
+                <div class="update-progress" id="updateProgressWrap" hidden>
+                  <div class="update-progress-bar"><span id="updateProgressBar"></span></div>
+                  <small class="field-hint" id="updateProgressText"></small>
+                </div>
+                <p class="field-hint" id="updateInstallHint" hidden></p>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
                   <div class="settings-icon"><svg class="icon"><use href="#i-database"/></svg></div>
                   <div><h3>Dados e persistência</h3><p>A base fica salva e compactada neste computador.</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Conta</strong><small id="settingsAccount">—</small></div>
+                  <button class="btn btn-ghost btn-sm" id="settingsSignOut" type="button">Sair</button>
                 </div>
                 <div class="setting-row">
                   <div><strong>Registros carregados</strong><small id="settingsDataSummary">Nenhum conjunto carregado.</small></div>
@@ -1076,6 +1131,59 @@
   </div>
 
   <!-- ── Toasts ───────────────────────────────────────────────────── -->
+  <!-- ── Login (Supabase) ────────────────────────────────────────── -->
+  <div class="auth-gate" id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-mark"><svg><use href="#i-bolt"/></svg></div>
+        <div class="auth-brand-copy">
+          <strong>NeoGrid</strong>
+          <span>Console de redes · Neoenergia PE</span>
+        </div>
+      </div>
+
+      <h1 id="authTitle">Entrar</h1>
+      <p class="auth-sub">Use a conta do Supabase da equipe.</p>
+
+      <form id="authForm" novalidate>
+        <label class="auth-field">
+          <span>E-mail</span>
+          <input class="input" id="authEmail" type="email" autocomplete="username" spellcheck="false" placeholder="nome@neoenergia.com" required>
+        </label>
+        <label class="auth-field">
+          <span>Senha</span>
+          <span class="auth-password">
+            <input class="input" id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button class="icon-btn" id="authShow" type="button" aria-label="Mostrar senha" title="Mostrar senha">
+              <svg class="icon"><use href="#i-eye"/></svg>
+            </button>
+          </span>
+        </label>
+        <p class="auth-error" id="authError" hidden></p>
+        <button class="btn btn-primary auth-submit" id="authSubmit" type="submit">Entrar</button>
+      </form>
+
+      <div class="auth-links">
+        <button class="link-btn" id="authForgot" type="button">Esqueci a senha</button>
+        <button class="link-btn" id="authConfigToggle" type="button">Conexão</button>
+      </div>
+
+      <form class="auth-config" id="authConfigForm" hidden>
+        <label class="auth-field">
+          <span>URL do projeto</span>
+          <input class="input" id="authUrl" spellcheck="false" placeholder="https://xxxx.supabase.co">
+        </label>
+        <label class="auth-field">
+          <span>Chave pública (anon)</span>
+          <input class="input" id="authKey" spellcheck="false" placeholder="eyJhbGciOi...">
+        </label>
+        <button class="btn btn-ghost btn-sm" type="submit">Salvar conexão</button>
+      </form>
+
+      <p class="auth-foot" id="authFoot">Conexão não configurada</p>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toasts" aria-live="polite"></div>
 
   <!-- ── Print root ──────────────────────────────────────────────── -->

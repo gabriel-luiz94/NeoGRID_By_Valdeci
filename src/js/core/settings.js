@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   dpr: 0,
   adaptive: true,
   autosave: true,
+  autoUpdate: true,
   fields: {},
   tableColumns: {},
 });
@@ -43,6 +44,7 @@ function readSettings() {
     parsed.scalebar = parsed.scalebar !== false;
     parsed.north = parsed.north !== false;
     parsed.autosave = parsed.autosave !== false;
+    parsed.autoUpdate = parsed.autoUpdate !== false;
     return parsed;
   } catch {
     return structuredClone(DEFAULT_SETTINGS);

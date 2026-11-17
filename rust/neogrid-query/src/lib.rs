@@ -65,6 +65,15 @@ mod testes_busca {
         assert_eq!(placa["hits"].as_array().unwrap().len(), 1);
 
         assert_eq!(mgr.search_fields("ZZZ", 10).unwrap()["hits"].as_array().unwrap().len(), 0);
+
+        // Quem digita o meio do código também acha: o índice completa por trecho.
+        let meio = mgr.search_fields("4435", 10).unwrap();
+        let hits = meio["hits"].as_array().unwrap();
+        assert!(hits.iter().any(|h| h["valor"] == "H044357"), "{meio}");
+        assert!(hits.iter().any(|h| h["valor"] == "H044358"), "{meio}");
+
+        let exato = mgr.search_fields("h044357", 10).unwrap();
+        assert_eq!(exato["hits"][0]["valor"], "H044357");
         drop(mgr);
         assert_eq!(std::fs::read(&base).unwrap(), antes, "a base não pode mudar");
         let _ = std::fs::remove_dir_all(&pasta);
@@ -348,8 +357,9 @@ impl Manager {
         Ok(())
     }
 
-    /// Procura pelo começo do valor nos campos de `BUSCA_CAMPOS`, sem diferenciar maiúsculas.
-    /// Valores iguais ao termo vêm primeiro, pois a ordem é a do próprio texto.
+    /// Procura o termo nos campos de `BUSCA_CAMPOS`, sem diferenciar maiúsculas.
+    /// Valores iguais vêm primeiro, depois os que começam com o termo e, por
+    /// último, os que o contêm no meio (ex.: `44357` acha `H044357`).
     pub fn search_fields(&self, term: &str, limit: i64) -> Result<serde_json::Value, String> {
         let estado = self.busca_estado.borrow().clone();
         let (nome_estado, erro) = match &estado {
@@ -357,36 +367,79 @@ impl Manager {
             EstadoBusca::Pronto => ("pronto", None),
             EstadoBusca::Erro(texto) => ("erro", Some(texto.clone())),
         };
+        let pedido = limit.clamp(1, 200);
         let mut hits = Vec::new();
         let termo = normalizar_termo(term);
+
+        // Lê o `_id` da linha e monta o resultado no formato que a busca da tela espera.
+        let montar = |valor: String, fonte: i64, rid: i64| -> Result<serde_json::Value, String> {
+            let Some((camada, _, campo)) = BUSCA_CAMPOS.get(fonte as usize) else {
+                return Ok(serde_json::Value::Null);
+            };
+            let sql = format!("SELECT \"_id\" FROM \"{camada}\" WHERE \"_rid\" = ?");
+            let id = self
+                .query_tuples(&sql, &[&rid as &dyn rusqlite::ToSql])?
+                .into_iter()
+                .next()
+                .and_then(|v| v.into_iter().next())
+                .map(|v| match v {
+                    Value::Text(s) => s,
+                    Value::Integer(n) => n.to_string(),
+                    Value::Real(f) => float_cell(f),
+                    _ => String::new(),
+                })
+                .unwrap_or_default();
+            Ok(serde_json::json!({"type": camada, "i": rid, "id": id, "valor": valor, "campo": campo}))
+        };
+
         if let (Some(busca), false) = (self.busca.borrow().as_ref(), termo.is_empty()) {
             let fim = format!("{termo}\u{10FFFF}");
             let mut stmt = busca
                 .prepare("SELECT termo, fonte, rid FROM busca WHERE termo >= ? AND termo < ? ORDER BY termo LIMIT ?")
                 .map_err(|e| e.to_string())?;
             let achados = stmt
-                .query_map(rusqlite::params![termo, fim, limit.clamp(1, 200)], |r| {
+                .query_map(rusqlite::params![termo, fim, pedido], |r| {
                     Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
                 })
                 .map_err(|e| e.to_string())?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| e.to_string())?;
             for (valor, fonte, rid) in achados {
-                let Some((camada, _, campo)) = BUSCA_CAMPOS.get(fonte as usize) else { continue };
-                let sql = format!("SELECT \"_id\" FROM \"{camada}\" WHERE \"_rid\" = ?");
-                let id = self
-                    .query_tuples(&sql, &[&rid as &dyn rusqlite::ToSql])?
-                    .into_iter()
-                    .next()
-                    .and_then(|v| v.into_iter().next())
-                    .map(|v| match v {
-                        Value::Text(s) => s,
-                        Value::Integer(n) => n.to_string(),
-                        Value::Real(f) => float_cell(f),
-                        _ => String::new(),
+                let hit = montar(valor, fonte, rid)?;
+                if !hit.is_null() {
+                    hits.push(hit);
+                }
+            }
+
+            // O começo do valor não preencheu a lista: procura também no meio
+            // (quem digita "44357" costuma não lembrar do prefixo "H0").
+            if (hits.len() as i64) < pedido {
+                let mut stmt = busca
+                    .prepare(
+                        "SELECT termo, fonte, rid FROM busca WHERE instr(termo, ?) > 0 \
+                         ORDER BY length(termo), termo LIMIT ?",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let achados = stmt
+                    .query_map(rusqlite::params![termo, pedido * 3], |r| {
+                        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
                     })
-                    .unwrap_or_default();
-                hits.push(serde_json::json!({"type": camada, "i": rid, "id": id, "valor": valor, "campo": campo}));
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                for (valor, fonte, rid) in achados {
+                    if valor.starts_with(&termo) {
+                        continue; // já veio na consulta por começo
+                    }
+                    let hit = montar(valor, fonte, rid)?;
+                    if hit.is_null() {
+                        continue;
+                    }
+                    hits.push(hit);
+                    if hits.len() as i64 >= pedido {
+                        break;
+                    }
+                }
             }
         }
         Ok(serde_json::json!({"estado": nome_estado, "erro": erro, "hits": hits}))

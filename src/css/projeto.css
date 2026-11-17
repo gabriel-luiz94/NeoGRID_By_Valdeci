@@ -112,6 +112,141 @@
 .prj-painel .ex-st { font-size: 12px; color: var(--prj-mudo); white-space: pre-wrap; word-break: break-word; }
 .prj-painel .ex-st.err { color: #ff8a8a; }
 .prj-painel .ex-st.ok { color: #9be3b0; }
+
+/* Seletor de vários campos do rótulo */
+.prj-painel .ex-campos {
+  display: grid;
+  gap: 6px;
+  margin: 5px 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.prj-painel .ex-campos[hidden] { display: none; }
+.prj-painel .ex-campos-head { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.prj-painel .ex-campos-filtro {
+  flex: 1 1 110px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+}
+.prj-painel .ex-campos-sep { height: 26px; padding: 0 4px; font-size: 11px; }
+.prj-painel .ex-campos-lista { max-height: 180px; overflow: auto; display: grid; gap: 1px; }
+.prj-painel .ex-campo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+.prj-painel .ex-campo:hover { background: var(--surface-hover); }
+.prj-painel .ex-campo[hidden] { display: none; }
+.prj-painel .ex-campo span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prj-painel .ex-campo small {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-size: 9.5px;
+}
+
+/* Lista de rótulos: a caixa marca o que aparece no mapa */
+.prj-painel .rot-lista { display: grid; gap: 2px; margin: 7px 0; }
+.prj-painel .rot-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.prj-painel .rot-item.is-sel { background: var(--surface-2); border-color: var(--border); }
+.prj-painel .rot-item.is-off .rot-nome { color: var(--faint); text-decoration: line-through; }
+.prj-painel .rot-item input[type=checkbox],
+.prj-painel .rot-campo input[type=checkbox],
+.prj-painel .rot-op input[type=checkbox] {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  accent-color: var(--accent);
+}
+.prj-painel .rot-nome {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: 1px 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: 11px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prj-painel .rot-nome:hover:not(:disabled) { background: none; color: var(--text); }
+.prj-painel .rot-novo { justify-self: start; }
+
+/* Campos do rótulo (modo "Por campos") */
+.prj-painel .rot-campos { display: grid; gap: 6px; }
+.prj-painel .rot-campos-topo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.prj-painel .rot-op { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; }
+.prj-painel .rot-op select { height: 26px; padding: 0 4px; font-size: 11px; }
+.prj-painel .rot-campos-lista {
+  display: grid;
+  gap: 1px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+.prj-painel .rot-campo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  color: var(--text-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+.prj-painel .rot-campo:hover { background: var(--surface-hover); }
+.prj-painel .rot-campo > span {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prj-painel .rot-col { color: var(--faint); font-size: 9px; font-style: normal; }
+.prj-painel .rot-campo small {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+  font-size: 9.5px;
+}
 .prj-painel .qs { overflow: auto; border: 1px solid var(--prj-linha); margin: 6px 0; max-height: 240px; }
 .prj-painel .qt { border-collapse: collapse; font-size: 12px; }
 .prj-painel table.qt { width: 100%; }

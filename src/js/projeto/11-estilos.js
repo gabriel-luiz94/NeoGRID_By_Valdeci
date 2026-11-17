@@ -25,8 +25,12 @@ function ctl(o, k, sp, ch) {
 }
 const sec = (titulo, ...kids) => mk('details', {class: 'sec', open: true}, mk('summary', null, titulo), ...kids);
 const amostra = t => ULT && ULT.t === t ? ULT : (D[t] && D[t].rows.length ? {t, i: 0} : null);
-function campos(t) { const d = D[t]; return d ? d.h.filter(n => n !== 'GEOMETRIA_WKT') : []; }
-function editorExpr(o, k, t, {rows = 2, M, filtro = false, presets = []}) {
+function campos(t) {
+  const d = D[t];
+  const lista = d ? d.h : (window.NG?.campos?.(t) || []);
+  return lista.filter(n => n !== 'GEOMETRIA_WKT');
+}
+function editorExpr(o, k, t, {rows = 2, M, filtro = false, presets = [], multicampos = false}) {
   const ta = mk('textarea', {rows, spellcheck: 'false', class: 'mono'}); ta.value = o[k] || '';
   const st = mk('div', {class: 'ex-st'});
   const atualiza = () => {
@@ -51,14 +55,72 @@ function editorExpr(o, k, t, {rows = 2, M, filtro = false, presets = []}) {
   const sFn = mk('select', {title: 'Inserir função'}, mk('option', {value: ''}, '+ função'),
     Expr.DOC.map(([g, l]) => mk('optgroup', {label: g}, l.map(([s, d]) => mk('option', {value: s}, s + '   — ' + d)))));
   sFn.onchange = () => { if (sFn.value) ins(sFn.value); sFn.value = ''; };
-  const tools = [sCampo, sFn];
+
+  // Vários campos de uma vez: marque na lista, escolha o separador e insira.
+  let painel = null;
+  if (multicampos) {
+    const am = amostra(t);
+    const exemplo = nome => {
+      if (!am) return '';
+      const d = D[am.t];
+      const j = d?.h?.indexOf(nome) ?? -1;
+      const v = j >= 0 ? d?.rows?.[am.i]?.[j] : '';
+      return v == null || v === '' ? '' : String(v).replace(/\s+/g, ' ').slice(0, 32);
+    };
+    const filtroCampo = mk('input', {type: 'search', class: 'ex-campos-filtro', placeholder: 'Filtrar campos…'});
+    const separador = mk('select', {class: 'ex-campos-sep', title: 'Separador entre os campos'},
+      [["'\\n'", 'Nova linha'], ["' · '", '·'], ["' - '", '-'], ["', '", ', '], ["' / '", '/']].map(([v, l]) => mk('option', {value: v}, l)));
+    const itens = campos(t).map(nome => {
+      const ck = mk('input', {type: 'checkbox', value: nome});
+      const ex = exemplo(nome);
+      const item = mk('label', {class: 'ex-campo'}, ck, mk('span', null, nome), ex ? mk('small', null, 'ex.: ' + ex) : null);
+      item.dataset.busca = `${nome} ${ex}`.toLowerCase();
+      return item;
+    });
+    filtroCampo.oninput = () => {
+      const q = filtroCampo.value.trim().toLowerCase();
+      itens.forEach(item => { item.hidden = Boolean(q) && !item.dataset.busca.includes(q); });
+    };
+    const inserir = mk('button', {type: 'button', class: 'p'}, 'Inserir');
+    inserir.onclick = () => {
+      const escolhidos = itens.filter(item => item.querySelector('input').checked).map(item => item.querySelector('input').value);
+      if (!escolhidos.length) { filtroCampo.focus(); return; }
+      const sep = separador.value;
+      const juncao = escolhidos.map(nome => '"' + nome + '"').join(' || ' + sep + ' || ');
+      // Acrescenta ao fim: previsível mesmo com o texto fora de foco/cursor.
+      const atual = ta.value.trim();
+      ta.value = atual ? `${atual} || ${sep} || ${juncao}` : juncao;
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+      ta.oninput();
+      itens.forEach(item => { item.querySelector('input').checked = false; });
+      painel.hidden = true;
+    };
+    const fechar = mk('button', {type: 'button', class: 'prj-link'}, 'Fechar');
+    fechar.onclick = () => { painel.hidden = true; };
+    painel = mk('div', {class: 'ex-campos', hidden: true},
+      mk('div', {class: 'ex-campos-head'}, filtroCampo, separador, inserir, fechar),
+      mk('div', {class: 'ex-campos-lista'}, ...itens));
+    filtroCampo.addEventListener('keydown', event => { if (event.key === 'Escape') painel.hidden = true; });
+  }
+
+  const tools = [sCampo];
+  if (painel) {
+    const btn = mk('button', {type: 'button', class: 'ex-campos-btn', title: 'Inserir vários campos de uma vez'}, '+ campos…');
+    btn.onclick = () => {
+      painel.hidden = !painel.hidden;
+      if (!painel.hidden) painel.querySelector('.ex-campos-filtro')?.focus();
+    };
+    tools.push(btn);
+  }
+  tools.push(sFn);
   if (presets.length) {
     const sP = mk('select', {title: 'Modelos'}, mk('option', {value: ''}, 'Modelos…'), presets.map(([n, e], q) => mk('option', {value: q}, n)));
     sP.onchange = () => { if (sP.value !== '') { ta.value = presets[+sP.value][1]; ta.oninput(); } sP.value = ''; };
     tools.push(sP);
   }
   atualiza();
-  return mk('div', {class: 'ex'}, ta, mk('div', {class: 'ex-tools'}, ...tools), st);
+  return mk('div', {class: 'ex'}, ta, mk('div', {class: 'ex-tools'}, ...tools), painel, st);
 }
 const PRESETS = {
   poste: [['Altura/esforço + barramento + material (padrão)', EX_POSTE], ['Somente o ID', '"NU_PG_ID"'], ['Altura/esforço', `"NU_ALTURA" || '/' || "NU_ESFORCO"`],
@@ -67,6 +129,102 @@ const PRESETS = {
   bt: [['Condutor e metragem (padrão)', EX_REDE], ['Somente metragem', `format_number($length, 1) || ' m'`], ['Somente condutor', `uniq_join('/', "CONDUTOR_A","CONDUTOR_B","CONDUTOR_C")`], ['Nº do trecho', '"NU_TRECHO"']],
 };
 PRESETS.mt = PRESETS.bt;
+
+// Nomes amigáveis das colunas mais comuns (as demais aparecem pelo próprio nome).
+const NOMES_CAMPO = {
+  NU_PG_ID: 'Nº do poste', DE_BARRAMENTO: 'Barramento', DE_BARRAMEN: 'Barramento',
+  NU_ALTURA: 'Altura', NU_ESFORCO: 'Esforço', MATERIAL: 'Material', CD_INDD_MATERIAL_PG_DESC: 'Material',
+  TIPO_PG: 'Tipo do poste', CD_TIPO_PG_DESC: 'Tipo do poste', POSSE: 'Posse', TIPO_LOCAL: 'Local',
+  NU_INSTALA: 'Nº da instalação', NU_INSTALACAO_MT_ID: 'Nº da instalação',
+  DE_PLACA: 'Placa', DE_PLACA_ANTIGA: 'Placa antiga',
+  TIPO_INSTA: 'Tipo de instalação', TIPO_SIGLA: 'Tipo (sigla)',
+  KVA_TOTAL: 'Potência total (kVA)', QTD_UCS: 'Qtd. de UCs', QTD_VIP: 'Qtd. VIP',
+  CONDUTOR_A: 'Condutor A', CONDUTOR_B: 'Condutor B', CONDUTOR_C: 'Condutor C', CONDUTOR_N: 'Neutro',
+  NU_COMPRIMENTO_REAL: 'Comprimento', SHP_LENGTH: 'Comprimento',
+  NU_TRECHO: 'Nº do trecho', NU_TRECHO_MT_ID: 'Nº do trecho', NU_TRECHO_BT_ID: 'Nº do trecho',
+  ALIM: 'Alimentador', NU_ALIMENTADOR_MT_ID: 'Alimentador', FASE: 'Fases', CD_FASE: 'Fases',
+  NU_ANGULO: 'Ângulo', UTD: 'UTD', SE: 'Subestação', SE_ID: 'Subestação',
+  NOME: 'Nome', DESCRICAO: 'Descrição', PASTA: 'Pasta', GRUPO: 'Grupo',
+};
+const nomeCampo = nome => NOMES_CAMPO[nome] || nome;
+
+/** Valor de exemplo da coluna na amostra atual (só para a lista de campos). */
+function exemploCampo(t, nome) {
+  const am = amostra(t);
+  if (!am) return '';
+  const d = D[am.t];
+  const j = d?.h?.indexOf(nome) ?? -1;
+  const v = j >= 0 ? d?.rows?.[am.i]?.[j] : '';
+  return v == null || v === '' ? '' : String(v).replace(/\s+/g, ' ').slice(0, 32);
+}
+
+/** Expressão gerada a partir das caixas marcadas (o rótulo sempre usa `expr`). */
+function exprDeCampos(L) {
+  const lista = (L.campos || []).filter(Boolean);
+  if (!lista.length) return '';
+  const sep = L.sepCampo || "'\\n'";
+  const valor = n => L.prefixoCampo === true
+    ? `if(length(coalesce("${n}", '')) > 0, "${n}" || ': ' || "${n}", '')`
+    : `"${n}"`;
+  return lista.map(valor).join(' || ' + sep + ' || ');
+}
+
+function editorCampos(L, t, M) {
+  const nomes = campos(t);
+  const wrap = mk('div', {class: 'rot-campos'});
+  if (!nomes.length) {
+    wrap.append(mk('p', {class: 'hint'}, 'Carregue uma base para escolher os campos.'));
+    return wrap;
+  }
+  if (!Array.isArray(L.campos)) L.campos = [];
+  const marcados = new Set(L.campos);
+  const previa = mk('div', {class: 'ex-st'});
+  const atualiza = () => {
+    if (!L.expr) { previa.className = 'ex-st'; previa.textContent = 'Marque os campos que devem aparecer no rótulo.'; return; }
+    const am = amostra(t);
+    if (!am) { previa.className = 'ex-st'; previa.textContent = 'Texto válido. A prévia aparece ao carregar os dados da área.'; return; }
+    const v = ev(L.expr, t, am.i);
+    previa.className = 'ex-st ok';
+    previa.textContent = 'Prévia: ' + (v === null ? 'NULL' : typeof v === 'string' ? '"' + v.replace(/\n/g, '↵') + '"' : String(v));
+  };
+  const aplicar = () => {
+    L.montagem = 'campos';
+    L.campos = nomes.filter(n => marcados.has(n));
+    L.expr = exprDeCampos(L);
+    atualiza();
+    M();
+  };
+  const lista = mk('div', {class: 'rot-campos-lista'});
+  for (const nome of nomes) {
+    const ck = mk('input', {type: 'checkbox', checked: marcados.has(nome)});
+    ck.onchange = () => { if (ck.checked) marcados.add(nome); else marcados.delete(nome); aplicar(); };
+    const ex = exemploCampo(t, nome);
+    lista.append(mk('label', {class: 'rot-campo'}, ck,
+      mk('span', null, nomeCampo(nome), nomeCampo(nome) === nome ? '' : mk('i', {class: 'rot-col'}, nome)),
+      ex ? mk('small', null, 'ex.: ' + ex) : null));
+  }
+  const sep = mk('select', {title: 'Separador entre os campos'},
+    [["'\\n'", 'Nova linha'], ["' · '", '·'], ["' - '", '-'], ["', '", ', '], ["' / '", '/']].map(([v, l]) => mk('option', {value: v}, l)));
+  sep.value = L.sepCampo || "'\\n'";
+  sep.onchange = () => { L.sepCampo = sep.value; aplicar(); };
+  const prefixo = mk('input', {type: 'checkbox', checked: L.prefixoCampo === true});
+  prefixo.onchange = () => { L.prefixoCampo = prefixo.checked; aplicar(); };
+  const limpar = mk('button', {type: 'button', class: 'prj-link', onclick: () => {
+    marcados.clear();
+    lista.querySelectorAll('input').forEach(i => { i.checked = false; });
+    aplicar();
+  }}, 'Limpar');
+  wrap.append(
+    mk('p', {class: 'hint'}, 'Marque os campos que devem aparecer no mapa.'),
+    mk('div', {class: 'rot-campos-topo'},
+      mk('label', {class: 'rot-op'}, mk('span', null, 'Separador'), sep),
+      mk('label', {class: 'rot-op'}, mk('span', null, 'Com o nome do campo'), prefixo),
+      limpar),
+    lista,
+    previa);
+  atualiza();
+  return wrap;
+}
 
 function abrirSP(aba) { if (aba) SP.aba = aba; $('#sp').hidden = false; document.body.classList.add('sp-open'); renderSP(); }
 function fecharSP() { $('#sp').hidden = true; document.body.classList.remove('sp-open'); }
@@ -205,25 +363,47 @@ function pagRg(c, t) {
 }
 function novoRot(t) {
   const ln = LINHA(t);
-  return ROT({nome: 'Novo rótulo', expr: '"' + (D[t]?.h.find(n => /^NU_/.test(n)) || 'ID') + '"', cor: '#ffffff', camada: 'TXT_' + t.toUpperCase(), prior: 3,
+  return ROT({nome: 'Novo rótulo', expr: '', montagem: 'campos', campos: [], cor: '#ffffff', camada: 'TXT_' + t.toUpperCase(), prior: 3,
     ...(ln ? {modo: 'alinhado', lado: 'acima', dist: 1, alinh: 'cen'} : {})});
 }
 function pagRt(c, t) {
   const cf = CFG.cam[t], M = () => mudou(t), labs = cf.labels, ln = LINHA(t);
   SP.l = Math.max(0, Math.min(SP.l, labs.length - 1));
-  const bar = mk('div', {class: 'chips'});
-  labs.forEach((L, k) => bar.append(mk('button', {class: k === SP.l ? 'on' : '', onclick: () => { SP.l = k; renderSP(); }}, (L.on ? '' : '⊘ ') + (L.nome || 'Rótulo ' + (k + 1)))));
-  bar.append(mk('button', {class: 'p', onclick: () => { labs.push(novoRot(t)); SP.l = labs.length - 1; M(); renderSP(); }}, '+ Novo'));
-  c.append(bar);
+  // Lista com caixa de seleção: marcar = aparece no mapa.
+  const lista = mk('div', {class: 'rot-lista'});
+  labs.forEach((L, k) => {
+    const ck = mk('input', {type: 'checkbox', checked: L.on !== false, title: 'Mostrar este rótulo no mapa'});
+    ck.onchange = () => { L.on = ck.checked; M(); renderSP(); };
+    lista.append(mk('div', {class: 'rot-item' + (k === SP.l ? ' is-sel' : '') + (L.on === false ? ' is-off' : '')},
+      ck,
+      mk('button', {type: 'button', class: 'rot-nome', title: 'Editar este rótulo', onclick: () => { SP.l = k; renderSP(); }}, L.nome || 'Rótulo ' + (k + 1))));
+  });
+  lista.append(mk('button', {type: 'button', class: 'p rot-novo', onclick: () => { labs.push(novoRot(t)); SP.l = labs.length - 1; M(); renderSP(); }}, '+ Novo'));
+  c.append(lista);
   if (!labs.length) { c.append(mk('p', {class: 'hint'}, 'Nenhum rótulo nesta camada.')); return; }
   const L = labs[SP.l];
+
+  // Rótulos simples ("CAMPO") já abrem no modo de caixas.
+  if (!L.montagem) {
+    const simples = /^\s*"([A-Z0-9_]+)"\s*$/.exec(L.expr || '');
+    if (simples && campos(t).includes(simples[1])) { L.campos = [simples[1]]; L.montagem = 'campos'; }
+    else L.montagem = 'expr';
+  }
+  const montagem = L.montagem === 'campos' ? 'campos' : 'expr';
+
   c.append(mk('div', {class: 'ch'},
     mk('button', {onclick: () => { labs.splice(SP.l + 1, 0, {...L, nome: L.nome + ' (cópia)'}); SP.l++; M(); renderSP(); }}, 'Duplicar'),
     mk('button', {onclick: () => { labs.splice(SP.l, 1); M(); renderSP(); }}, 'Excluir')));
+  const abas = mk('div', {class: 'sub'},
+    mk('button', {class: montagem === 'campos' ? 'on' : '', onclick: () => { L.montagem = 'campos'; if (!Array.isArray(L.campos)) L.campos = []; renderSP(); }}, 'Por campos'),
+    mk('button', {class: montagem === 'expr' ? 'on' : '', onclick: () => { L.montagem = 'expr'; renderSP(); }}, 'Expressão'));
   c.append(sec('Conteúdo',
     fr('Ativo', ctl(L, 'on', {t: 'chk'}, M)), fr('Nome', ctl(L, 'nome', {t: 'txt', re: false}, M)),
-    mk('div', {class: 'lab'}, 'Texto do rótulo (expressão; use \'\\n\' para quebrar linha)'),
-    editorExpr(L, 'expr', t, {rows: 4, M, presets: PRESETS[t]}),
+    abas,
+    montagem === 'campos'
+      ? editorCampos(L, t, M)
+      : [mk('div', {class: 'lab'}, 'Texto do rótulo (expressão; use \'\\n\' para quebrar linha)'),
+         editorExpr(L, 'expr', t, {rows: 4, M, presets: PRESETS[t], multicampos: true})],
     mk('div', {class: 'lab'}, 'Filtro (opcional): só rotula elementos em que a expressão for verdadeira'),
     editorExpr(L, 'filtro', t, {rows: 2, M, filtro: true})));
   c.append(sec('Texto',
