@@ -23,6 +23,18 @@ let avisou = false, ULT = null;
 const VERSAO = 'v20.0 · 29/10/2026';
 const LC = new Map(), ESTC = new Map(), BLOCOS = {};
 
+/** Blocos DXF do estilo padrão (só os usados pelas regras). */
+function blocosPadrao() {
+  const out = {};
+  if (typeof ESTILO_PADRAO !== 'undefined' && ESTILO_PADRAO && ESTILO_PADRAO.blocos) {
+    for (const [nome, bl] of Object.entries(ESTILO_PADRAO.blocos)) {
+      try { out[nome] = DXF.prepBloco({...bl}); } catch { /* bloco inválido no padrão */ }
+    }
+  }
+  return out;
+}
+Object.assign(BLOCOS, blocosPadrao());
+
 // ---------------- configuração padrão ----------------
 const FONTES = ['Inter Variable', 'Segoe UI', 'Arial', 'Verdana', 'Tahoma', 'Calibri', 'Consolas', 'Courier New', 'Times New Roman', 'Georgia', 'Impact'];
 const ESTP = () => ({forma: 'ret', tam: 14, tamh: 7, cor: '#fbbf24', borda: '#08141c', bordaW: 1, larg: 3, opac: 1, girar: true, angOff: 0, zoomEsc: true, bloco: '', blocoModo: 'ajustar', blocoK: 1, atrib: ''});
@@ -38,7 +50,7 @@ const EX_INST = `coalesce("TIPO_INSTA","TIPO_SIGLA","NU_TIPO_INSTALACAO_MT_ID_DE
 const EX_REDE = `uniq_join('/', "CONDUTOR_A","CONDUTOR_B","CONDUTOR_C") || if(length(uniq_join('', "CONDUTOR_N")) > 0, ' + N ' || "CONDUTOR_N", '') || if(length(uniq_join('/', "CONDUTOR_A","CONDUTOR_B","CONDUTOR_C")) > 0, ' · ', '') || format_number(coalesce(nullif(to_real("NU_COMPRIMENTO_REAL"),0), nullif(to_real("SHP_LENGTH"),0), $length), 1) || ' m'`;
 const EXI = `upper(coalesce("TIPO_INSTA","TIPO_SIGLA","NU_TIPO_INSTALACAO_MT_ID_DESC",''))`;
 function cfgPadrao() {
-  return {
+  const base = {
     v: 2,
     cam: {
       poste: {base: {...ESTP(), atrib: 'NU_PG_ID\nNU_ALTURA\nNU_ESFORCO\nDE_BARRAMENTO'}, rules: [],
@@ -79,6 +91,9 @@ function cfgPadrao() {
     limites: {est: false, mun: false, estCor: '#ffd166', estW: 3, munCor: '#9aa5ad', munW: 1, munTrac: false, rot: true, rotCor: '#e6eef5'},
     geral: {lembrar: true, perguntarPasta: false, perguntarAbrir: true}
   };
+  // Estilo da equipe (src/js/projeto/estilo-padrao.js) por cima do padrão estrutural.
+  if (typeof ESTILO_PADRAO === 'undefined' || !ESTILO_PADRAO || !ESTILO_PADRAO.cfg) return base;
+  return mesclar(base, JSON.parse(JSON.stringify(ESTILO_PADRAO.cfg)));
 }
 function mesclar(a, b) {
   if (b === undefined || b === null) return a;

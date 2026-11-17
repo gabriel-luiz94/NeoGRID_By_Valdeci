@@ -494,7 +494,7 @@ function pagGeral(c) {
     mk('p', {class: 'hint'}, 'Estilos, regras, rótulos, blocos e opções de exportação ficam salvos no NeoGrid. Exporte um arquivo para levar a outra máquina ou compartilhar com a equipe.'),
     mk('button', {onclick: () => baixar('neogrid_estilos_projeto.json', JSON.stringify({CFG, BLOCOS}, null, 1), 'application/json')}, 'Exportar configuração (.json)'),
     mk('button', {onclick: () => $('#arqcfg').click()}, 'Importar configuração…'),
-    mk('button', {onclick: () => { if (confirm('Restaurar toda a configuração do projeto para o padrão?')) { CFG = cfgPadrao(); for (const k of Object.keys(BLOCOS)) delete BLOCOS[k]; normalizarCfg(); mudou(); renderSP(); } }}, 'Restaurar tudo ao padrão')));
+    mk('button', {onclick: () => { if (confirm('Restaurar toda a configuração do projeto para o padrão?')) { CFG = cfgPadrao(); for (const k of Object.keys(BLOCOS)) delete BLOCOS[k]; Object.assign(BLOCOS, blocosPadrao()); normalizarCfg(); mudou(); renderSP(); } }}, 'Restaurar tudo ao padrão')));
   const lm = () => { limEstilo(); salvar(); };
   c.append(sec('Limites de Pernambuco',
     mk('p', {class: 'hint'}, 'Dados do IBGE embutidos (funcionam sem internet), simplificados para o desenho.'),

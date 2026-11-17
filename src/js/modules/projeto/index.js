@@ -10,7 +10,7 @@ import { getKmlExportData, hasKmlData, kmlOpcoes, kmlVisivel, openKmlDialogFromA
 import { DEFAULT_DXF_SETTINGS, loadDxfSettings } from '../dxf/dxf-settings.js';
 
 const MOTOR = [
-  '00-expr', '01-dxf', '02-clipper', '03-ruas', '03b-ruas-core', '10-base', '11-estilos', '12-selecao-dxf',
+  'estilo-padrao', '00-expr', '01-dxf', '02-clipper', '03-ruas', '03b-ruas-core', '10-base', '11-estilos', '12-selecao-dxf',
   '13-consulta', '14-limites', '15-arruamento', '16-projeto', '17-organizar-anotar', '18-pacote', '19-integracao', '20-mapa',
 ];
 const AVISO_MUITOS = 1500000;

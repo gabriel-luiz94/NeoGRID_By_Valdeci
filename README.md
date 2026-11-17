@@ -181,6 +181,8 @@ As camadas se ligam e desligam pela legenda do mapa, que fica sempre à vista, p
 
 As edições, estilos e ruas ficam em `workspace.sqlite`, na pasta de dados do app, separado da base: gerar a base do mês seguinte não apaga o trabalho.
 
+O **estilo padrão de fábrica** (cores, formas, blocos, rótulos e regras) fica em `src/js/projeto/estilo-padrao.js`, gerado a partir de **Estilos → Geral → Exportar configuração**. Ele vale para instalações novas e para o botão **Restaurar tudo ao padrão**; só os blocos DXF usados pelas regras são embutidos (o JSON exportado pode ter centenas). Para trocar o padrão, substitua esse arquivo e recompile — o arquivo de exportação completo continua servindo para importar em cada máquina.
+
 ### Consultar
 
 Filtro por expressão (mesma linguagem dos rótulos) em qualquer camada, e **SQL somente leitura** na base. As visões `v_poste`, `v_inst`, `v_bt` e `v_mt` já devolvem os valores por extenso e o WKT. Limites: um comando por vez, 60 segundos e 20.000 linhas.
