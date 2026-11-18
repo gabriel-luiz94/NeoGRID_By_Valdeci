@@ -1,6 +1,6 @@
 [package]
 name = "neogrid-app"
-version = "3.0.5"
+version = "3.0.6"
 edition = "2021"
 description = "NeoGrid: console desktop de redes, postes e ativos elétricos (shell Tauri)"
 build = "build.rs"
