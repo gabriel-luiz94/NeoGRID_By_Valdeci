@@ -163,6 +163,10 @@
           <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
           <span class="nav-text">Consultar</span>
         </button>
+        <button class="nav-item" data-view="kml" title="KML e KMZ no mapa (gasodutos, pontos e áreas)">
+          <span class="nav-icon"><svg class="icon"><use href="#i-kml"/></svg></span>
+          <span class="nav-text">KML/KMZ</span>
+        </button>
         <button class="nav-item" id="navEstilos" title="Cores, símbolos, blocos e rótulos do mapa, do projeto e do DXF" type="button">
           <span class="nav-icon"><svg class="icon"><use href="#i-tag"/></svg></span>
           <span class="nav-text">Estilos</span>
@@ -800,6 +804,122 @@
             </div>
           </div>
         </section>
+
+        <!-- ══ KML / KMZ ═════════════════════════════════════════════ -->
+        <section class="view view-kml" data-view="kml" aria-label="KML e KMZ">
+          <div class="view-scroll settings-wrap">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Mapa</span>
+                <h2>KML e KMZ</h2>
+                <p>Importe arquivos, controle o que aparece no mapa e ajuste as linhas. O KMZ da Copergás já vem embutido.</p>
+              </div>
+            </div>
+
+            <div class="settings-grid">
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-upload"/></svg></div>
+                  <div><h3>Importar</h3><p>KML ou KMZ (zip) do Google Earth</p></div>
+                </div>
+                <input type="file" id="kmlFileInput" accept=".kml,.kmz" multiple hidden>
+                <div class="setting-row">
+                  <div><strong>Adicionar arquivos</strong><small>KMZ é descompactado sozinho; arquivos grandes são lidos em segundos.</small></div>
+                  <div class="setting-actions">
+                    <button class="btn btn-primary btn-sm" type="button" id="kmlPick">
+                      <svg class="icon"><use href="#i-upload"/></svg> Escolher KML/KMZ…
+                    </button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>No mapa</strong><small id="kmlImportStatus">Nenhum arquivo carregado.</small></div>
+                  <div class="setting-actions">
+                    <button class="btn btn-soft btn-sm" type="button" id="kmlFit">Ir para o KML</button>
+                    <button class="btn btn-ghost btn-sm" type="button" id="kmlClearAll">Remover todos</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Ir para o arquivo ao importar</strong><small>Centraliza o mapa no KML recém-carregado.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="kmlFitOnImport" class="switch" checked><span>Ativado</span></label>
+                </div>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
+                  <div><h3>Rede Copergás (embutida)</h3><p>Gasodutos que acompanham o programa</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Situação</strong><small id="kmlEmbedStatus">Carregando o KMZ embutido…</small></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Trocar o arquivo</strong><small>Use o KMZ mais recente da Copergás. A troca fica salva neste computador e pode ser desfeita.</small></div>
+                  <div class="setting-actions">
+                    <input type="file" id="kmlEmbedInput" accept=".kmz,.kml" hidden>
+                    <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedReplace">Substituir KMZ…</button>
+                    <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedRestore">Restaurar original</button>
+                  </div>
+                </div>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-eye"/></svg></div>
+                  <div><h3>Exibição</h3><p>O que aparece no mapa e no DXF</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Pontos</strong><small>Marcadores dos placemarks pontuais.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="kmlShowPoints" class="switch" checked><span>Mostrar</span></label>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Linhas</strong><small>Gasodutos, trechos e caminhos.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="kmlShowLines" class="switch" checked><span>Mostrar</span></label>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Áreas</strong><small>Polígonos e limites.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="kmlShowPolygons" class="switch" checked><span>Mostrar</span></label>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Rótulos</strong><small>Nomes dos placemarks junto aos elementos (até 200).</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="kmlShowLabels" class="switch" checked><span>Mostrar</span></label>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Cores do arquivo</strong><small>Usa as cores definidas no KML. Desligado: valem as cores do Estilo.</small></div>
+                  <label class="inline-switch"><input type="checkbox" id="kmlUseKmlColors" class="switch" checked><span>Usar</span></label>
+                </div>
+              </article>
+
+              <article class="card settings-card">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-ruler"/></svg></div>
+                  <div><h3>Linhas e pontos</h3><p>Espessura, cor e opacidade</p></div>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Espessura das linhas</strong><small>Define a largura de todos os trechos, a menos que você use a largura do arquivo.</small></div>
+                  <button class="btn btn-soft btn-sm" type="button" id="kmlEstilos">Abrir Estilos → KML</button>
+                </div>
+                <div class="setting-row">
+                  <div><strong>Cores padrão</strong><small>Usadas quando as cores do arquivo estão desligadas.</small></div>
+                  <div class="setting-actions">
+                    <input type="color" id="kmlPointColor" value="#f472b6" title="Cor dos pontos" aria-label="Cor dos pontos">
+                    <input type="color" id="kmlLineColor" value="#38bdf8" title="Cor das linhas" aria-label="Cor das linhas">
+                    <input type="color" id="kmlPolygonColor" value="#22c55e" title="Cor das áreas" aria-label="Cor das áreas">
+                  </div>
+                </div>
+                <p class="field-hint">Em <b>Estilos → KML linhas e áreas → Aparência</b> também há “Usar a largura/opacidade/cor do próprio KML”.</p>
+              </article>
+
+              <article class="card settings-card" style="grid-column: 1 / -1">
+                <div class="settings-head">
+                  <div class="settings-icon"><svg class="icon"><use href="#i-layers"/></svg></div>
+                  <div><h3>Arquivos carregados</h3><p>Marque para mostrar no mapa, “Ir para” enquadra o arquivo</p></div>
+                </div>
+                <div class="kml-files" id="kmlFiles"></div>
+                <div class="kml-unsupported" id="kmlUnsupported"></div>
+              </article>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer class="statusbar">
@@ -1037,57 +1157,7 @@
       </footer>
     </form>
   </dialog>
-
-  <!-- ── Drag & drop overlay ─────────────────────────────────────── -->
-  <dialog class="modal modal-lg" id="kmlDialog">
-    <form method="dialog" class="modal-shell" id="kmlForm">
-      <header class="modal-head">
-        <div class="modal-head-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
-        <div class="modal-head-copy">
-          <h2>KML/KMZ no mapa</h2>
-          <p>Pontos, linhas e áreas do Google Earth (KML ou KMZ), com escolha do que vai para o DXF</p>
-        </div>
-        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
-      </header>
-      <div class="modal-body kml-body">
-        <div class="kml-import-row">
-          <input type="file" id="kmlFileInput" accept=".kml,.kmz" multiple hidden>
-          <button class="btn btn-primary btn-sm" type="button" id="kmlPick"><svg class="icon"><use href="#i-upload"/></svg> Escolher KML/KMZ…</button>
-          <span class="kml-import-status" id="kmlImportStatus">Nenhum arquivo KML carregado.</span>
-          <label class="inline-switch"><input type="checkbox" id="kmlFitOnImport" class="switch" checked><span>Ir para o KML ao abrir</span></label>
-        </div>
-
-        <div class="kml-options-grid">
-          <section class="kml-options-card">
-            <strong>Exibição e aparência</strong>
-            <p class="field-hint">Pontos, linhas, áreas, rótulos e cores do KML ficam em Estilos → Camadas. Arquivos importados valem só enquanto o programa estiver aberto; o KMZ da Copergás (embutido) carrega sozinho.</p>
-            <button class="btn btn-ghost btn-sm" type="button" id="kmlEstilos">Abrir Estilos</button>
-            <button class="btn btn-ghost btn-sm" type="button" id="kmlFit">Ir para o KML</button>
-          </section>
-          <section class="kml-options-card">
-            <strong>Rede Copergás (embutida)</strong>
-            <p class="field-hint" id="kmlEmbedStatus">Carregando o KMZ embutido…</p>
-            <input type="file" id="kmlEmbedInput" accept=".kmz,.kml" hidden>
-            <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedReplace">Substituir KMZ…</button>
-            <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedRestore">Restaurar original</button>
-          </section>
-        </div>
-
-        <div class="kml-files-head">
-          <strong>Arquivos carregados</strong>
-          <button class="ghost-btn" type="button" id="kmlClearAll">Remover todos</button>
-        </div>
-        <div class="kml-files" id="kmlFiles"></div>
-        <div class="kml-unsupported" id="kmlUnsupported"></div>
-      </div>
-      <footer class="modal-foot">
-        <span class="modal-foot-info">KML em WGS 84 (longitude, latitude). Modelos 3D e overlays são ignorados com aviso.</span>
-        <div class="modal-actions"><button class="btn btn-primary" data-close>Fechar</button></div>
-      </footer>
-    </form>
-  </dialog>
-
-  <dialog class="modal" id="noteDialog">
+<dialog class="modal" id="noteDialog">
     <form method="dialog" class="modal-shell">
       <header class="modal-head">
         <div class="modal-head-icon"><svg class="icon"><use href="#i-file-text"/></svg></div>

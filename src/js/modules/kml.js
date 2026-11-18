@@ -1,6 +1,6 @@
 import { bus } from '../core/bus.js';
 import { esc, fmtInt } from '../core/format.js';
-import { icon, openDialog } from '../core/dom.js';
+import { icon } from '../core/dom.js';
 import { settings } from '../core/settings.js';
 import { toast } from '../ui/toast.js';
 
@@ -648,7 +648,7 @@ export async function unzipKml(buffer) {
 }
 
 async function importFiles(fileList) {
-  const files = [...(fileList || [])].filter((file) => /\.kmz?$/i.test(file.name));
+  const files = [...(fileList || [])].filter((file) => /\.(kml|kmz)$/i.test(file.name));
   if (!files.length) {
     toast.warning('Nenhum KML/KMZ selecionado', 'Escolha arquivos com extensão .kml ou .kmz.');
     return;
@@ -906,18 +906,20 @@ function persistOptions() {
 }
 
 function openKmlDialog() {
-  if (!els.dialog) return;
+  const view = els.view || document.querySelector('.view-kml');
+  if (!view) return;
   syncOptionsUi();
   renderFiles();
   updateImportStatus();
   atualizarStatusEmbutido();
-  openDialog(els.dialog);
+  deps.navigate?.('kml');
 }
 
 export function initKml(options = {}) {
   deps = options;
   els = {
-    dialog: document.querySelector('#kmlDialog'),
+    view: document.querySelector('.view-kml'),
+    dialog: document.querySelector('.view-kml'),
     fit: document.querySelector('#kmlFit'),
     clear: document.querySelector('#kmlClear'),
     fileInput: document.querySelector('#kmlFileInput'),
@@ -1071,8 +1073,7 @@ export function initKml(options = {}) {
     if ((key === 'labels' || key === 'all') && state.files.length) render();
   });
   document.querySelector('#kmlEstilos')?.addEventListener('click', () => {
-    els.dialog?.close?.();
-    bus.emit('labels:open', 'camadas');
+    bus.emit('labels:open', 'kmll');
   });
   bus.on('kml:manage', () => openKmlDialog());
 

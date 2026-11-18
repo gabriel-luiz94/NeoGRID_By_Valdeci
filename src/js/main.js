@@ -34,6 +34,11 @@ const VIEW_CONFIG = {
     title: 'Exportações',
     subtitle: 'Leve a operação para o CAD, para a planilha ou para o papel.',
   },
+  kml: {
+    eyebrow: 'Mapa',
+    title: 'KML e KMZ',
+    subtitle: 'Importe, exiba e ajuste arquivos do Google Earth no mapa.',
+  },
   settings: {
     eyebrow: 'Sistema',
     title: 'Configurações',

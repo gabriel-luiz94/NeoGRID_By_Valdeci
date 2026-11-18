@@ -179,6 +179,8 @@ Dados de vias © colaboradores do OpenStreetMap, licença ODbL.
 
 Estilos, regras, blocos e rótulos, inclusive os do KML, ficam em um só lugar (**Estilos**, na barra lateral) e valem para o **mapa inteiro**, para o projeto e para o DXF. Fonte, tamanho, cor, contorno, balão e posição dos rótulos aparecem no mapa, e o projeto aberto se refaz ao mudar um estilo.
 
+Arquivos do Google Earth têm uma área própria na barra lateral (**KML/KMZ**): importar, ligar/desligar cada arquivo, ir para o arquivo, remover, controlar pontos/linhas/áreas/rótulos e trocar o KMZ embutido da Copergás. A espessura e as cores das linhas ficam em **Estilos → KML linhas e áreas** (ou pelo atalho na área KML).
+
 As camadas se ligam e desligam pela legenda do mapa, que fica sempre à vista, pelo painel de camadas e pelo painel do Projeto. A legenda também traz **Arruamento** (ruas guardadas no mapa e inclusão no DXF), **KML** e **Rótulos**. No Projeto, desligar uma camada também a tira do DXF, da prancha e do quantitativo. Na primeira abertura, blocos, regras e rótulos configurados em versões anteriores são convertidos.
 
 As edições, estilos e ruas ficam em `workspace.sqlite`, na pasta de dados do app, separado da base: gerar a base do mês seguinte não apaga o trabalho.
