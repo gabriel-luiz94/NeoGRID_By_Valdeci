@@ -53,6 +53,11 @@ async function salvar() {
 function desenhar() {
   const map = deps.mapView?.map;
   if (!map) return;
+  if (!map.getPane('notasPane')) {
+    map.createPane('notasPane');
+    // Fica acima dos ativos e do KML, mas abaixo dos popups.
+    map.getPane('notasPane').style.zIndex = '640';
+  }
   if (!grupo) grupo = L.layerGroup().addTo(map);
   grupo.clearLayers();
   const icone = () => L.divIcon({
@@ -63,6 +68,7 @@ function desenhar() {
   });
   for (const nota of notas) {
     const marcador = L.marker([nota.lat, nota.lng], {
+      pane: 'notasPane',
       icon: icone(),
       draggable: true,
       riseOnHover: true,

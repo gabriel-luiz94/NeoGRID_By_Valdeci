@@ -1061,9 +1061,10 @@
 }
 
 .kml-label {
-  padding: 0;
+  padding: 1px 4px;
   border: 0;
-  background: transparent;
+  border-radius: 3px;
+  background: rgba(8, 13, 18, .62);
   box-shadow: none;
   color: #f8fafc;
   font-size: 8.5px;
@@ -1890,6 +1891,23 @@
 
 .map-note-label::before {
   display: none;
+}
+
+/* No papel: fundo branco nos textos das anotações e do KML, para ler no PDF. */
+body.is-printing .map-note-label {
+  border-color: rgba(16, 33, 45, .4) !important;
+  background: #fff !important;
+  color: #10212d !important;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+body.is-printing .kml-label {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .9);
+  color: #10212d;
+  text-shadow: none;
 }
 
 .note-text {

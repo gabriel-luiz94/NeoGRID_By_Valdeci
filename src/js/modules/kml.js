@@ -701,6 +701,143 @@ async function importFiles(fileList) {
   if (state.fitOnImport && firstBounds) fitBounds(firstBounds);
 }
 
+// ---- KMZ embutido (Rede Copergás) -----------------------------------------
+// O arquivo fica em src/data/copergas.kmz (vai junto do programa). Um KMZ
+// substituído pelo usuário fica no IndexedDB e tem prioridade; "Restaurar
+// original" apaga o substituto e volta ao embutido.
+const EMBUTIDO_URL = 'data/copergas.kmz';
+const EMBUTIDO_ID = 'kml-embutido';
+const EMBUTIDO_DB = 'neogrid-kml';
+const EMBUTIDO_CHAVE = 'kml:copergas';
+
+function bytesParaBase64(bytes) {
+  const view = new Uint8Array(bytes);
+  let binario = '';
+  for (let i = 0; i < view.length; i += 0x8000) {
+    binario += String.fromCharCode.apply(null, view.subarray(i, i + 0x8000));
+  }
+  return btoa(binario);
+}
+
+function base64ParaBytes(texto) {
+  const binario = atob(String(texto));
+  const out = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i += 1) out[i] = binario.charCodeAt(i);
+  return out.buffer;
+}
+
+function abrirBancoEmbutido() {
+  return new Promise((resolve, reject) => {
+    const pedido = indexedDB.open(EMBUTIDO_DB, 1);
+    pedido.onupgradeneeded = () => {
+      const db = pedido.result;
+      if (!db.objectStoreNames.contains('arquivos')) db.createObjectStore('arquivos');
+    };
+    pedido.onsuccess = () => resolve(pedido.result);
+    pedido.onerror = () => reject(pedido.error);
+  });
+}
+
+async function comBancoEmbutido(modo, acao) {
+  const db = await abrirBancoEmbutido();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('arquivos', modo);
+    const pedido = acao(tx.objectStore('arquivos'));
+    tx.oncomplete = () => resolve(pedido?.result ?? null);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// O substituto fica no workspace (SQLite), que é estável entre execuções — o
+// IndexedDB não serve no app porque a porta do servidor local muda a cada
+// abertura. No modo web (sem desktop), o IndexedDB assume.
+async function lerEmbutidoSubstituido() {
+  if (globalThis.desktop?.wsGet) {
+    try {
+      const salvo = await globalThis.desktop.wsGet(EMBUTIDO_CHAVE);
+      if (salvo) return base64ParaBytes(salvo);
+    } catch {
+      /* tenta o IndexedDB */
+    }
+  }
+  return comBancoEmbutido('readonly', (store) => store.get('copergas')).catch(() => null);
+}
+
+async function gravarEmbutido(bytes) {
+  if (globalThis.desktop?.wsPut) {
+    await globalThis.desktop.wsPut(EMBUTIDO_CHAVE, bytesParaBase64(bytes));
+    return;
+  }
+  await comBancoEmbutido('readwrite', (store) => store.put(bytes, 'copergas'));
+}
+
+async function limparEmbutido() {
+  if (globalThis.desktop?.wsPut) {
+    try { await globalThis.desktop.wsPut(EMBUTIDO_CHAVE, ''); } catch { /* segue */ }
+  }
+  await comBancoEmbutido('readwrite', (store) => store.delete('copergas')).catch(() => null);
+}
+
+function atualizarStatusEmbutido(erro) {
+  const el = document.querySelector('#kmlEmbedStatus');
+  if (!el) return;
+  if (erro) {
+    el.textContent = `Não foi possível carregar o KMZ embutido: ${erro}`;
+    return;
+  }
+  const registro = state.files.find((file) => file.id === EMBUTIDO_ID);
+  if (!registro) {
+    el.textContent = 'KMZ embutido não carregado.';
+    return;
+  }
+  const { points = 0, lines = 0, polygons = 0 } = registro.counts || {};
+  const origem = registro.origem === 'local'
+    ? 'KMZ substituído neste computador'
+    : 'KMZ original embutido no programa';
+  el.textContent = `${origem} · ${fmtInt(lines)} linhas${points ? ` · ${fmtInt(points)} pontos` : ''}${polygons ? ` · ${fmtInt(polygons)} áreas` : ''}.`;
+}
+
+async function carregarEmbutido({ avisar = false } = {}) {
+  state.files = state.files.filter((file) => file.id !== EMBUTIDO_ID);
+  try {
+    let bytes = await lerEmbutidoSubstituido();
+    const local = Boolean(bytes);
+    if (!bytes) {
+      const resposta = await fetch(EMBUTIDO_URL, { cache: 'no-cache' });
+      if (!resposta.ok) throw new Error(`arquivo embutido indisponível (HTTP ${resposta.status})`);
+      bytes = await resposta.arrayBuffer();
+    }
+    const cabeca = new Uint8Array(bytes.slice(0, 2));
+    const texto = cabeca[0] === 0x50 && cabeca[1] === 0x4b
+      ? await unzipKml(bytes)
+      : new TextDecoder().decode(bytes);
+    const parsed = parseKml(texto, 'Rede Copergás.kmz');
+    state.files.unshift({
+      id: EMBUTIDO_ID,
+      embutido: true,
+      origem: local ? 'local' : 'original',
+      name: 'Rede Copergás',
+      fileName: local ? 'KMZ substituído neste computador' : 'KMZ embutido no programa',
+      addedAt: Date.now(),
+      visible: true,
+      counts: parsed.counts,
+      unsupported: parsed.unsupported,
+      bounds: parsed.bounds,
+      features: parsed.features,
+    });
+    render();
+    renderFiles();
+    updateImportStatus();
+    atualizarStatusEmbutido();
+    if (avisar) {
+      toast.success('Rede Copergás carregada', local ? 'Usando o KMZ substituído.' : 'Usando o KMZ embutido no programa.');
+    }
+  } catch (erro) {
+    atualizarStatusEmbutido(erro?.message || String(erro));
+    if (avisar) toast.error('KMZ embutido', erro?.message || String(erro));
+  }
+}
+
 function updateImportStatus(text) {
   if (!els.importStatus) return;
   const { points, lines, polygons } = summary();
@@ -773,6 +910,7 @@ function openKmlDialog() {
   syncOptionsUi();
   renderFiles();
   updateImportStatus();
+  atualizarStatusEmbutido();
   openDialog(els.dialog);
 }
 
@@ -819,6 +957,31 @@ export function initKml(options = {}) {
     els.fileInput.value = '';
     await importFiles(files);
   });
+  document.querySelector('#kmlEmbedReplace')?.addEventListener('click', () => {
+    document.querySelector('#kmlEmbedInput')?.click();
+  });
+  document.querySelector('#kmlEmbedInput')?.addEventListener('change', async () => {
+    const input = document.querySelector('#kmlEmbedInput');
+    const file = input?.files?.[0];
+    if (input) input.value = '';
+    if (!file) return;
+    try {
+      await gravarEmbutido(await file.arrayBuffer());
+      await carregarEmbutido({ avisar: true });
+    } catch (erro) {
+      toast.error('Substituir KMZ', erro?.message || String(erro));
+    }
+  });
+  document.querySelector('#kmlEmbedRestore')?.addEventListener('click', async () => {
+    try {
+      await limparEmbutido();
+      await carregarEmbutido({ avisar: true });
+    } catch (erro) {
+      toast.error('Restaurar KMZ', erro?.message || String(erro));
+    }
+  });
+  // Carrega o KMZ da Copergás embutido depois que a janela assentou.
+  setTimeout(() => { carregarEmbutido(); }, 1200);
 
   els.fit?.addEventListener('click', fitAll);
   els.clear?.addEventListener('click', () => {

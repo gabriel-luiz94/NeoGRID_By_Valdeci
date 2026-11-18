@@ -198,8 +198,8 @@ Ao gerar a base, as pastas abaixo da origem viram a coluna `REGIONAL`. A base po
 - Camadas de **postes**, **rede BT**, **rede MT** e **instalações**.
 - Fundos: satélite Esri, ruas Esri, CARTO escuro, CARTO Voyager, OpenStreetMap e sem fundo.
 - **Ruas guardadas** como camada de consulta: mostra o que está no pacote de ruas ou já foi baixado, sem acessar a internet.
-- **KML/KMZ** com pontos, linhas, áreas e nomes, com escolha do que aparece e navegação até o arquivo. Arquivos grandes (ex.: rede de gás, 27 MB e 19 mil trechos) entram por um leitor rápido e são desenhados agrupados em canvas.
-- **Anotações no mapa**: botão de anotação → clique no ponto → escreva. O texto fica preso ao local (arraste para mover), salvo no `workspace.sqlite`, com opção de mostrar o texto na tela e excluir pela própria nota.
+- **KML/KMZ** com pontos, linhas, áreas e nomes, com escolha do que aparece e navegação até o arquivo. Arquivos grandes (ex.: rede de gás, 27 MB e 19 mil trechos) entram por um leitor rápido e são desenhados agrupados em canvas. O **KMZ da Rede Copergás vai embutido** (`src/data/copergas.kmz`) e carrega sozinho ao abrir; pode ser **substituído** em KML → Rede Copergás (embutida) → Substituir KMZ, com **Restaurar original** a qualquer momento.
+- **Anotações no mapa**: botão de anotação → clique no ponto → escreva. O texto fica preso ao local (arraste para mover), salvo no `workspace.sqlite`, com opção de mostrar o texto na tela e excluir pela própria nota. As anotações **saem na impressão/PDF**, com fundo branco no texto para leitura no papel.
 - **Estilo das linhas do KML**: espessura, cor e opacidade em Estilos → KML linhas e áreas, com opções para **usar** ou **ignorar** o que vem no arquivo (`<width>`, cor e transparência).
 - Rótulos com desvio de colisão, priorização e exibição a partir do zoom configurado.
 - Construtor de rótulos por camada: escolha um ou vários campos de postes, instalações, BT e MT em uma lista (com exemplo de valor), escolha o separador e insira no texto sem digitar modelos; a mesma configuração vale para o mapa e o DXF.

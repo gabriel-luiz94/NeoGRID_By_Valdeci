@@ -1060,9 +1060,16 @@
         <div class="kml-options-grid">
           <section class="kml-options-card">
             <strong>Exibição e aparência</strong>
-            <p class="field-hint">Pontos, linhas, áreas, rótulos e cores do KML ficam em Estilos → Camadas. O KML vale só enquanto o programa estiver aberto: ao reabrir, importe de novo.</p>
+            <p class="field-hint">Pontos, linhas, áreas, rótulos e cores do KML ficam em Estilos → Camadas. Arquivos importados valem só enquanto o programa estiver aberto; o KMZ da Copergás (embutido) carrega sozinho.</p>
             <button class="btn btn-ghost btn-sm" type="button" id="kmlEstilos">Abrir Estilos</button>
             <button class="btn btn-ghost btn-sm" type="button" id="kmlFit">Ir para o KML</button>
+          </section>
+          <section class="kml-options-card">
+            <strong>Rede Copergás (embutida)</strong>
+            <p class="field-hint" id="kmlEmbedStatus">Carregando o KMZ embutido…</p>
+            <input type="file" id="kmlEmbedInput" accept=".kmz,.kml" hidden>
+            <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedReplace">Substituir KMZ…</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedRestore">Restaurar original</button>
           </section>
         </div>
 
