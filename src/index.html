@@ -1184,6 +1184,20 @@
     </div>
   </div>
 
+  <!-- ── Aviso de atualização ─────────────────────────────────────── -->
+  <div class="update-notice" id="updateNotice" role="alert" hidden>
+    <div class="update-notice-icon"><svg class="icon"><use href="#i-download"/></svg></div>
+    <div class="update-notice-copy">
+      <strong id="updateNoticeTitle">Atualização disponível</strong>
+      <small id="updateNoticeText">—</small>
+      <div class="update-notice-bar" id="updateNoticeBar" hidden><span id="updateNoticeFill"></span></div>
+    </div>
+    <div class="update-notice-actions">
+      <button class="btn btn-ghost btn-sm" id="updateNoticeLater" type="button">Depois</button>
+      <button class="btn btn-primary btn-sm" id="updateNoticeInstall" type="button">Instalar agora</button>
+    </div>
+  </div>
+
   <div class="toast-stack" id="toasts" aria-live="polite"></div>
 
   <!-- ── Print root ──────────────────────────────────────────────── -->

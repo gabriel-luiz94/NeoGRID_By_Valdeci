@@ -60,7 +60,9 @@ nenhum servidor.
 
 ### Atualizações automáticas
 
-A cópia instalada verifica o GitHub **ao abrir e a cada 6 horas**:
+A cópia instalada verifica o GitHub **ao abrir e a cada 6 horas**. Quando há
+versão nova, aparece sozinho logo depois do login um aviso com **Instalar agora**
+e **Depois** (fica na tela até você decidir):
 
 1. consulta `releases/latest` do repositório `gabriel-luiz94/NeoGRID_By_Valdeci`;
 2. compara a versão publicada com a instalada;
@@ -115,7 +117,7 @@ where email = 'fulano@neoenergia.com';
 | Perfil | Pode |
 |---|---|
 | `admin` | tudo: importar, gerar base, exportar, limpar base, restaurar preferências |
-| `operador` | importar, gerar base, exportar, projeto, atualizações |
+| `operador` | importar, gerar base, exportar, limpar base, restaurar preferências, projeto, atualizações |
 | `leitor` | visualizar, exportar e abrir projeto `.neogrid` |
 
 A sessão é renovada em segundo plano. Sem internet, a última sessão validada

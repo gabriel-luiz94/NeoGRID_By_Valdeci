@@ -26,9 +26,9 @@ const ROLE_LABELS = { admin: 'Administrador', operador: 'Operador', leitor: 'Lei
 const ROLE_PERMISSIONS = {
   admin: ['*'],
   operador: [
-    'data:import', 'data:build', 'data:export',
+    'data:import', 'data:build', 'data:export', 'data:clear',
     'project', 'project:export',
-    'settings', 'settings:fields',
+    'settings', 'settings:fields', 'settings:reset',
     'update:check', 'update:install',
   ],
   leitor: ['data:export', 'project:view', 'settings:view', 'update:check'],

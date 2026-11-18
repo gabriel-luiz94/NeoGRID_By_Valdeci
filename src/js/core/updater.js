@@ -14,9 +14,8 @@ import { toast } from '../ui/toast.js';
 import { confirmAction } from '../ui/confirm.js';
 
 const INTERVAL_MS = 6 * 60 * 60 * 1000;
-const FIRST_DELAY_MS = 7000;
+const FIRST_DELAY_MS = 2500;
 const LAST_KEY = 'neogrid.update.lastCheck';
-const NOTIFIED_KEY = 'neogrid.update.notified';
 const FALLBACK_PAGE = 'https://github.com/gabriel-luiz94/NeoGRID_By_Valdeci/releases/latest';
 
 const state = {
@@ -38,9 +37,68 @@ const state = {
 
 let timer = 0;
 let listening = false;
+let noticeWired = false;
+let dismissedVersion = '';
 
 function emit() {
   bus.emit('update:state', { ...state });
+  renderNotice();
+}
+
+const notice = () => document.querySelector('#updateNotice');
+
+function renderNotice() {
+  const el = notice();
+  if (!el) return;
+  const version = state.latest?.version || '';
+  const show = Boolean(state.supported && state.available && version && dismissedVersion !== version);
+  el.hidden = !show;
+  if (!show) return;
+
+  const title = document.querySelector('#updateNoticeTitle');
+  const text = document.querySelector('#updateNoticeText');
+  const button = document.querySelector('#updateNoticeInstall');
+  const bar = document.querySelector('#updateNoticeBar');
+  const fill = document.querySelector('#updateNoticeFill');
+
+  if (title) title.textContent = `NeoGrid ${version} disponível`;
+  if (text) {
+    if (state.installing) {
+      const total = state.total ? ` · ${formatBytes(state.downloaded)} de ${formatBytes(state.total)}` : '';
+      text.textContent = `${phaseText()} ${state.progress || 0}%${total}`;
+    } else if (state.error) {
+      text.textContent = state.error;
+    } else {
+      const notes = String(state.latest.notes || '').replace(/[#*_`>]/g, '').trim().split('\n')[0];
+      text.textContent = notes
+        ? notes.slice(0, 140)
+        : `Você está na ${state.current || 'versão atual'}. Instale para receber as novidades.`;
+    }
+  }
+  if (button) {
+    button.disabled = Boolean(state.installing);
+    button.textContent = state.installing ? 'Instalando…' : 'Instalar agora';
+  }
+  if (bar) bar.hidden = !state.installing;
+  if (fill) fill.style.width = `${Math.max(0, Math.min(100, state.progress || 0))}%`;
+}
+
+function phaseText() {
+  if (state.phase === 'check') return 'Consultando…';
+  if (state.phase === 'verify') return 'Conferindo o instalador ·';
+  if (state.phase === 'ready') return 'Aplicando ·';
+  return 'Baixando';
+}
+
+function wireNotice() {
+  if (noticeWired) return;
+  noticeWired = true;
+  document.querySelector('#updateNoticeInstall')?.addEventListener('click', () => { installUpdate(); });
+  document.querySelector('#updateNoticeLater')?.addEventListener('click', () => {
+    dismissedVersion = state.latest?.version || '';
+    renderNotice();
+  });
+  document.querySelector('#updateNoticeDetails')?.addEventListener('click', () => { openReleasePage(); });
 }
 
 function readNumber(key) {
@@ -106,22 +164,6 @@ function applyResult(result) {
   state.error = result.ok === false ? result.error || 'Falha ao consultar o GitHub.' : '';
 }
 
-function announce() {
-  const version = state.latest?.version;
-  if (!version) return;
-  if (readString(NOTIFIED_KEY) === version) return;
-  writeString(NOTIFIED_KEY, version);
-  toast.info(
-    `Atualização ${version} disponível`,
-    'Abra Configurações → Atualizações para instalar.',
-    {
-      duration: 10000,
-      actionLabel: 'Instalar',
-      action: () => { install(); },
-    },
-  );
-}
-
 async function runCheck({ manual = false } = {}) {
   if (!state.supported) {
     if (manual) {
@@ -140,12 +182,10 @@ async function runCheck({ manual = false } = {}) {
     if (manual) {
       if (state.error) toast.error('Não foi possível verificar', state.error);
       else if (state.available) {
-        toast.info(`Atualização disponível: ${state.latest?.version}`, 'Use “Instalar e reiniciar” nesta tela.');
+        toast.info(`Atualização disponível: ${state.latest?.version}`, 'Use “Instalar agora” no aviso abaixo.');
       } else {
         toast.success('Você está na versão mais recente', `NeoGrid ${state.current}`);
       }
-    } else if (state.available) {
-      announce();
     }
   } catch (error) {
     state.error = error?.message || String(error);
@@ -245,10 +285,18 @@ export function setAutoUpdate(enabled) {
   reschedule();
 }
 
-/** Inicia o agendador; chamado uma vez no boot do app. */
+/** Inicia o agendador; chamado uma vez no boot do app (depois do login). */
 export function startUpdater() {
   state.supported = Boolean(globalThis.desktop?.updateCheck);
   state.checkedAt = readNumber(LAST_KEY);
+  wireNotice();
+  const testMode = new URLSearchParams(location.search).get('test') === '1';
+  if (testMode) {
+    // Gancho dos testes automatizados: simula uma versão publicada.
+    globalThis.__updateTest = {
+      state(next) { Object.assign(state, { supported: true }, next); emit(); },
+    };
+  }
   if (!state.supported) {
     emit();
     return;
@@ -259,7 +307,7 @@ export function startUpdater() {
     emit();
   }).catch(() => {});
   // Nos testes automatizados (e2e com ?test=1) nada de rede em segundo plano.
-  if (new URLSearchParams(location.search).get('test') === '1') {
+  if (testMode) {
     emit();
     return;
   }
