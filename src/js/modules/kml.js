@@ -208,8 +208,128 @@ function featureBounds(features) {
   return { south, west, north, east };
 }
 
+const XML_ENTIDADES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+function decodeXml(text) {
+  return String(text || '').replace(/&(#x?[0-9a-f]+|\w+);/gi, (todo, codigo) => {
+    if (codigo[0] === '#') {
+      const numero = codigo[1].toLowerCase() === 'x' ? parseInt(codigo.slice(2), 16) : parseInt(codigo.slice(1), 10);
+      return Number.isFinite(numero) ? String.fromCodePoint(numero) : todo;
+    }
+    return XML_ENTIDADES[codigo.toLowerCase()] ?? todo;
+  });
+}
+
+/** Lê um bloco de <Style> direto do texto (usado no caminho rápido). */
+function readStyleText(bloco) {
+  const trecho = (nome) => {
+    const achado = new RegExp(`<${nome}[^>]*>([\\s\\S]*?)</${nome}>`, 'i').exec(bloco);
+    return achado ? achado[1] : '';
+  };
+  const valor = (texto, nome) => {
+    const achado = new RegExp(`<${nome}>([\\s\\S]*?)</${nome}>`, 'i').exec(texto);
+    return achado ? achado[1].trim() : '';
+  };
+  const linha = trecho('LineStyle');
+  const area = trecho('PolyStyle');
+  const icone = trecho('IconStyle');
+  const rotulo = trecho('LabelStyle');
+  const corLinha = valor(linha, 'color');
+  const corArea = valor(area, 'color');
+  const largura = Number(valor(linha, 'width'));
+  return {
+    lineColor: kmlColor(corLinha),
+    polyColor: kmlColor(corArea),
+    iconColor: kmlColor(valor(icone, 'color')),
+    labelColor: kmlColor(valor(rotulo, 'color')),
+    width: Number.isFinite(largura) && largura > 0 ? Math.min(8, largura) : 0,
+    fill: valor(area, 'fill') !== '0',
+    outline: valor(area, 'outline') !== '0',
+    lineAlpha: kmlAlpha(corLinha),
+    polyAlpha: kmlAlpha(corArea),
+  };
+}
+
+/**
+ * Caminho rápido para KML grandes (dezenas de MB): percorre o texto com
+ * expressões regulares em vez de montar um DOM com milhões de nós.
+ */
+export function parseKmlFast(text, fileName = 'arquivo.kml') {
+  const src = String(text || '');
+  const estilos = new Map();
+  const estiloRe = /<Style\s+id="([^"]+)"[^>]*>([\s\S]*?)<\/Style>/g;
+  let achado;
+  while ((achado = estiloRe.exec(src))) estilos.set(achado[1], readStyleText(achado[2]));
+  const resolver = (url) => {
+    const id = String(url || '').replace(/^.*#/, '');
+    return id ? estilos.get(id) || null : null;
+  };
+
+  const coordsDe = (bloco) => {
+    const m = /<coordinates>([\s\S]*?)<\/coordinates>/.exec(bloco);
+    return parseCoordinates(m ? m[1] : '');
+  };
+
+  const features = [];
+  const placeRe = /<Placemark\b[^>]*>([\s\S]*?)<\/Placemark>/g;
+  while ((achado = placeRe.exec(src))) {
+    const corpo = achado[1];
+    const nome = decodeXml((/<name>([\s\S]*?)<\/name>/.exec(corpo) || [])[1] || '').trim();
+    const styleUrl = (/<styleUrl>([\s\S]*?)<\/styleUrl>/.exec(corpo) || [])[1]?.trim() || '';
+    let estilo = resolver(styleUrl);
+    if (!estilo) {
+      const inline = /<Style>([\s\S]*?)<\/Style>/.exec(corpo);
+      if (inline) estilo = readStyleText(inline[1]);
+    }
+    const base = { name: nome, folder: '', styleUrl, style: estilo || {}, placemark: features.length };
+
+    const linhaRe = /<LineString\b[^>]*>([\s\S]*?)<\/LineString>/g;
+    let linha;
+    while ((linha = linhaRe.exec(corpo))) {
+      const pts = coordsDe(linha[1]);
+      if (pts.length >= 2) features.push({ ...base, kind: 'line', pts });
+    }
+    const pontoRe = /<Point\b[^>]*>([\s\S]*?)<\/Point>/g;
+    let ponto;
+    while ((ponto = pontoRe.exec(corpo))) {
+      const pts = coordsDe(ponto[1]);
+      if (pts.length) features.push({ ...base, kind: 'point', lat: pts[0][0], lon: pts[0][1] });
+    }
+    const areaRe = /<Polygon\b[^>]*>([\s\S]*?)<\/Polygon>/g;
+    let area;
+    while ((area = areaRe.exec(corpo))) {
+      const aneis = [];
+      for (const tipo of ['outerBoundaryIs', 'innerBoundaryIs']) {
+        const anelRe = new RegExp(`<${tipo}[^>]*>([\\s\\S]*?)</${tipo}>`, 'g');
+        let anel;
+        while ((anel = anelRe.exec(area[1]))) {
+          const pts = coordsDe(anel[1]);
+          if (pts.length >= 3) aneis.push(pts);
+        }
+      }
+      if (aneis.length) features.push({ ...base, kind: 'polygon', rings: aneis });
+    }
+  }
+
+  if (!features.length) throw new Error('Nenhum ponto, linha ou polígono encontrado.');
+  return {
+    name: fileName.replace(/\.km[zl]$/i, ''),
+    fileName,
+    features,
+    counts: {
+      points: features.filter((feature) => feature.kind === 'point').length,
+      lines: features.filter((feature) => feature.kind === 'line').length,
+      polygons: features.filter((feature) => feature.kind === 'polygon').length,
+    },
+    unsupported: {},
+    bounds: featureBounds(features),
+  };
+}
+
 /** Parse a KML document into points, lines and polygons. */
 export function parseKml(text, fileName = 'arquivo.kml') {
+  // Acima de ~4 MB o DOM fica grande demais: o caminho por regex é muito mais rápido.
+  if (String(text || '').length > 4_000_000) return parseKmlFast(text, fileName);
   if (typeof DOMParser === 'undefined') throw new Error('Leitor XML indisponível.');
   const doc = new DOMParser().parseFromString(String(text || ''), 'application/xml');
   if (doc.querySelector('parsererror')) throw new Error('O arquivo não é um KML válido.');
@@ -255,7 +375,7 @@ export function parseKml(text, fileName = 'arquivo.kml') {
     polygons: features.filter((feature) => feature.kind === 'polygon').length,
   };
   return {
-    name: fileName.replace(/\.kml$/i, ''),
+    name: fileName.replace(/\.km[zl]$/i, ''),
     fileName,
     features,
     counts,
@@ -364,21 +484,61 @@ function render() {
   }
 
   if (state.options.showLines) {
-    for (const file of visibleFiles) {
-      for (const feature of file.features) {
-        if (feature.kind !== 'line') continue;
-        const color = featureColor(feature, 'line', state.options.lineColor);
-        const line = L.polyline(feature.pts, {
+    const k = window.ngMapa?.kml() || {};
+    const totalLinhas = visibleFiles.reduce(
+      (n, file) => n + file.features.reduce((m, f) => m + (f.kind === 'line' ? 1 : 0), 0),
+      0,
+    );
+    if (totalLinhas > 800) {
+      // Arquivos grandes (ex.: rede de gás com milhares de trechos): agrupa por
+      // estilo e desenha em um canvas só, em vez de milhares de camadas SVG.
+      const renderer = L.canvas({ pane: 'kmlPane', padding: 0.3 });
+      const grupos = new Map();
+      for (const file of visibleFiles) {
+        for (const feature of file.features) {
+          if (feature.kind !== 'line') continue;
+          const color = featureColor(feature, 'line', state.options.lineColor);
+          const weight = (k.largKml ? feature.style?.width : 0) || k.larg || 2;
+          const opacity = k.opacKml ? (feature.style?.lineAlpha ?? 0.9) : (k.opac ?? 0.9);
+          const chave = `${color}|${weight}|${opacity}`;
+          let grupo = grupos.get(chave);
+          if (!grupo) {
+            grupo = { color, weight, opacity, segmentos: [] };
+            grupos.set(chave, grupo);
+          }
+          grupo.segmentos.push(feature.pts);
+        }
+      }
+      for (const grupo of grupos.values()) {
+        L.polyline(grupo.segmentos, {
           pane: 'kmlPane',
-          color,
-          weight: feature.style?.width || (window.ngMapa?.kml().larg ?? 2),
-          opacity: feature.style?.lineAlpha ?? 0.9,
+          renderer,
+          color: grupo.color,
+          weight: grupo.weight,
+          opacity: grupo.opacity,
           interactive: false,
-        });
-        line.addTo(layer);
-        if (labels < 200 && feature.name) {
-          addLabel(line, feature.name);
-          labels += 1;
+          smoothFactor: 1,
+        }).addTo(layer);
+      }
+    } else {
+      for (const file of visibleFiles) {
+        for (const feature of file.features) {
+          if (feature.kind !== 'line') continue;
+          const color = featureColor(feature, 'line', state.options.lineColor);
+          const weight = (k.largKml ? feature.style?.width : 0) || k.larg || 2;
+          const opacity = k.opacKml ? (feature.style?.lineAlpha ?? 0.9) : (k.opac ?? 0.9);
+          const line = L.polyline(feature.pts, {
+            pane: 'kmlPane',
+            color,
+            weight,
+            opacity,
+            interactive: false,
+          });
+          line.addTo(layer);
+          if (labels < 200 && feature.name) {
+            addLabel(line, feature.name);
+            labels += 1;
+          }
         }
       }
     }
@@ -443,17 +603,63 @@ function fitFile(file) {
   fitBounds(file.bounds || featureBounds(file.features));
 }
 
+/** Extrai o primeiro `.kml` de um KMZ (zip), sem depender de biblioteca externa. */
+export async function unzipKml(buffer) {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length < 22) throw new Error('KMZ vazio ou inválido.');
+  const view = new DataView(buffer);
+  // Localiza o "end of central directory" (assinatura 0x06054b50).
+  let eocd = -1;
+  const limite = Math.max(0, bytes.length - 22 - 0xffff);
+  for (let i = bytes.length - 22; i >= limite; i -= 1) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('KMZ inválido: diretório do zip não encontrado.');
+  const total = view.getUint16(eocd + 10, true);
+  let offset = view.getUint32(eocd + 16, true);
+  let alvo = null;
+  for (let n = 0; n < total && offset + 46 <= bytes.length; n += 1) {
+    if (view.getUint32(offset, true) !== 0x02014b50) break;
+    const metodo = view.getUint16(offset + 10, true);
+    const comprimido = view.getUint32(offset + 20, true);
+    const tamNome = view.getUint16(offset + 28, true);
+    const extra = view.getUint16(offset + 30, true);
+    const comentario = view.getUint16(offset + 32, true);
+    const local = view.getUint32(offset + 42, true);
+    const nome = new TextDecoder().decode(bytes.subarray(offset + 46, offset + 46 + tamNome));
+    if (/\.kml$/i.test(nome) && (!alvo || /(^|\/)doc\.kml$/i.test(nome))) {
+      alvo = { nome, metodo, comprimido, local };
+    }
+    offset += 46 + tamNome + extra + comentario;
+  }
+  if (!alvo) throw new Error('O KMZ não contém um arquivo .kml.');
+  if (alvo.local + 30 > bytes.length || view.getUint32(alvo.local, true) !== 0x04034b50) {
+    throw new Error('KMZ inválido: cabeçalho do arquivo não encontrado.');
+  }
+  const tamNome = view.getUint16(alvo.local + 26, true);
+  const extra = view.getUint16(alvo.local + 28, true);
+  const inicio = alvo.local + 30 + tamNome + extra;
+  const dados = bytes.subarray(inicio, inicio + alvo.comprimido);
+  if (alvo.metodo === 0) return new TextDecoder().decode(dados);
+  if (alvo.metodo !== 8) throw new Error(`KMZ com compressão não suportada (método ${alvo.metodo}).`);
+  if (typeof DecompressionStream === 'undefined') throw new Error('Este sistema não consegue descompactar KMZ.');
+  const fluxo = new Blob([dados]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Response(fluxo).text();
+}
+
 async function importFiles(fileList) {
-  const files = [...(fileList || [])].filter((file) => /\.kml$/i.test(file.name));
+  const files = [...(fileList || [])].filter((file) => /\.kmz?$/i.test(file.name));
   if (!files.length) {
-    toast.warning('Nenhum KML selecionado', 'Escolha arquivos com extensão .kml.');
+    toast.warning('Nenhum KML/KMZ selecionado', 'Escolha arquivos com extensão .kml ou .kmz.');
     return;
   }
   let added = 0;
   let firstBounds = null;
   for (const file of files) {
     try {
-      const text = await file.text();
+      const text = /\.kmz$/i.test(file.name)
+        ? await unzipKml(await file.arrayBuffer())
+        : await file.text();
       const parsed = parseKml(text, file.name);
       sequence += 1;
       const record = {

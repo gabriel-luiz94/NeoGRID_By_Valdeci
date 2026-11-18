@@ -1845,3 +1845,57 @@
 .panel-pane.is-active .panel-quick-links {
   margin-top: auto;
 }
+
+/* === Anotações no mapa ========================================== */
+.map-note {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #1c1303;
+  border-radius: 50% 50% 50% 3px;
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .38);
+  transform: rotate(45deg);
+  cursor: pointer;
+  transition: transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+
+.map-note:hover {
+  transform: rotate(45deg) scale(1.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+}
+
+.map-note span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1c1303;
+  transform: rotate(-45deg);
+}
+
+.map-note-label {
+  max-width: 240px;
+  padding: 3px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--glass-strong);
+  color: var(--text-2);
+  font-size: 9.5px;
+  line-height: 1.4;
+  white-space: pre-line;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(8px);
+}
+
+.map-note-label::before {
+  display: none;
+}
+
+.note-text {
+  height: auto;
+  min-height: 88px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}

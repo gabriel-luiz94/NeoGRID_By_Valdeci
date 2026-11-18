@@ -426,8 +426,11 @@
                   <button class="map-tool tooltip" id="mapStreets" data-tooltip="Mostrar as ruas guardadas" aria-label="Mostrar as ruas guardadas">
                     <svg class="icon"><use href="#i-road"/></svg>
                   </button>
-                  <button class="map-tool tooltip" id="mapKml" data-tooltip="KML: pontos, linhas e áreas" aria-label="KML">
+                  <button class="map-tool tooltip" id="mapKml" data-tooltip="KML/KMZ: pontos, linhas e áreas" aria-label="KML">
                     <svg class="icon"><use href="#i-kml"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapNote" data-tooltip="Anotações no mapa" aria-label="Anotações no mapa">
+                    <svg class="icon"><use href="#i-file-text"/></svg>
                   </button>
                   <button class="map-tool tooltip" id="mapPrint" data-tooltip="Imprimir / PDF" aria-label="Imprimir ou salvar PDF">
                     <svg class="icon"><use href="#i-printer"/></svg>
@@ -1041,15 +1044,15 @@
       <header class="modal-head">
         <div class="modal-head-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
         <div class="modal-head-copy">
-          <h2>KML no mapa</h2>
-          <p>Pontos, linhas e áreas do Google Earth, com escolha do que vai para o DXF</p>
+          <h2>KML/KMZ no mapa</h2>
+          <p>Pontos, linhas e áreas do Google Earth (KML ou KMZ), com escolha do que vai para o DXF</p>
         </div>
         <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
       </header>
       <div class="modal-body kml-body">
         <div class="kml-import-row">
-          <input type="file" id="kmlFileInput" accept=".kml" multiple hidden>
-          <button class="btn btn-primary btn-sm" type="button" id="kmlPick"><svg class="icon"><use href="#i-upload"/></svg> Escolher arquivos KML…</button>
+          <input type="file" id="kmlFileInput" accept=".kml,.kmz" multiple hidden>
+          <button class="btn btn-primary btn-sm" type="button" id="kmlPick"><svg class="icon"><use href="#i-upload"/></svg> Escolher KML/KMZ…</button>
           <span class="kml-import-status" id="kmlImportStatus">Nenhum arquivo KML carregado.</span>
           <label class="inline-switch"><input type="checkbox" id="kmlFitOnImport" class="switch" checked><span>Ir para o KML ao abrir</span></label>
         </div>
@@ -1073,6 +1076,34 @@
       <footer class="modal-foot">
         <span class="modal-foot-info">KML em WGS 84 (longitude, latitude). Modelos 3D e overlays são ignorados com aviso.</span>
         <div class="modal-actions"><button class="btn btn-primary" data-close>Fechar</button></div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="noteDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-file-text"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Anotação no mapa</h2>
+          <p>Texto preso a um ponto do mapa; não altera a base</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <label class="field">
+          <span>Texto</span>
+          <textarea class="input note-text" id="noteText" rows="4" placeholder="Ex.: travessia do gasoduto — atenção na escavação" data-autofocus></textarea>
+        </label>
+        <label class="inline-switch"><input type="checkbox" id="noteShowOnMap" class="switch" checked><span>Mostrar o texto no mapa</span></label>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn btn-danger-ghost btn-sm" type="button" id="noteDelete" hidden>Excluir</button>
+        <span class="modal-foot-info">A anotação fica salva neste computador.</span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-close>Cancelar</button>
+          <button class="btn btn-primary" type="button" id="noteSave">Salvar</button>
+        </div>
       </footer>
     </form>
   </dialog>

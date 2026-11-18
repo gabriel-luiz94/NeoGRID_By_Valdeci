@@ -62,7 +62,17 @@ const ngMapa = (() => {
     /** Estilo do KML, que o mapa também segue. */
     kml() {
       const p = CFG.cam.kmlp, l = CFG.cam.kmll;
-      return {ponto: p.base.cor, linha: l.base.cor, raio: (p.base.tam || 10) / 2, larg: l.base.larg || 2, corKml: p.base.corKml !== false && l.base.corKml !== false, rotulos: rotuloLigado('kml') && (p.labels.some(r => r.on) || l.labels.some(r => r.on))};
+      return {
+        ponto: p.base.cor,
+        linha: l.base.cor,
+        raio: (p.base.tam || 10) / 2,
+        larg: l.base.larg || 2,
+        opac: l.base.opac ?? 0.9,
+        corKml: p.base.corKml !== false && l.base.corKml !== false,
+        largKml: l.base.largKml === true,
+        opacKml: l.base.opacKml === true,
+        rotulos: rotuloLigado('kml') && (p.labels.some(r => r.on) || l.labels.some(r => r.on)),
+      };
     },
     cores: () => ({...Object.fromEntries(['poste', 'inst', 'bt', 'mt'].map(t => [t, CFG.cam[t].base.cor])), kml: CFG.cam.kmll.base.cor, ruas: CFG.mapa.ruas.cor}),
     rotuloLigado,

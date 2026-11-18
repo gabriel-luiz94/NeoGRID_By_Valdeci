@@ -294,8 +294,10 @@ function formEstilo(c, t, o, M) {
   const on = M;
   if (LINHA(t)) {
     c.append(fr('Cor', ctl(o, 'cor', {t: 'cor'}, on)), ...(KML(t) && 'corKml' in o ? [fr('Usar a cor do próprio KML', ctl(o, 'corKml', {t: 'chk'}, on), 'Cada elemento usa a cor definida no arquivo KML. Desligado: vale a cor ao lado.')] : []), fr('Largura (px)', ctl(o, 'larg', {t: 'num', min: .5, step: .5}, on)),
+      ...(KML(t) && 'largKml' in o ? [fr('Usar a largura do próprio KML', ctl(o, 'largKml', {t: 'chk'}, on), 'Desligado (padrão): vale a largura acima para todos os trechos. Ligue para respeitar o <width> do arquivo.')] : []),
       fr('Estilo do traço', ctl(o, 'dash', {t: 'sel', o: [['', 'Contínuo'], ['8 4', 'Tracejado'], ['2 3', 'Pontilhado'], ['10 3 2 3', 'Traço e ponto']]}, on)),
       fr('Opacidade', ctl(o, 'opac', {t: 'num', min: 0, max: 1, step: .05}, on)),
+      ...(KML(t) && 'opacKml' in o ? [fr('Usar a opacidade do próprio KML', ctl(o, 'opacKml', {t: 'chk'}, on), 'Desligado (padrão): vale a opacidade acima para todos os trechos.')] : []),
       fr('Extremidade', ctl(o, 'cap', {t: 'sel', o: [['round', 'Arredondada'], ['butt', 'Reta'], ['square', 'Quadrada']]}, on)),
       fr('Contorno (casing)', ctl(o, 'casing', {t: 'chk', re: true}, on)));
     if (o.casing) c.append(fr('Cor do contorno', ctl(o, 'casingCor', {t: 'cor'}, on)), fr('Espessura de cada lado', ctl(o, 'casingW', {t: 'num', min: .5, step: .5}, on)));

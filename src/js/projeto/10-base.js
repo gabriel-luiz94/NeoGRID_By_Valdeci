@@ -63,7 +63,7 @@ function cfgPadrao() {
         labels: [ROT({nome: 'Tipo e placa', expr: EX_INST, cor: '#f1f5f9', alinh: 'dir', pos: 'esq', dist: 12, dy: -3, prior: 1, camada: 'TXT_INSTALACOES'})]},
       kmlp: {base: {...ESTP(), forma: 'circ', tam: 10, cor: '#f472b6', borda: '#08141c', bordaW: 1.5, girar: false, zoomEsc: false, corKml: true, atrib: 'NOME\nDESCRICAO\nPASTA'}, rules: [],
         labels: [ROT({nome: 'Nome', expr: '"NOME"', cor: '#ffe08a', dist: 9, minZ: 17, camada: 'TXT_KML'})]},
-      kmll: {base: {...ESTL(), cor: '#38bdf8', larg: 2, corKml: true}, rules: [],
+      kmll: {base: {...ESTL(), cor: '#38bdf8', larg: 2, corKml: true, largKml: false, opacKml: false}, rules: [],
         labels: [ROT({nome: 'Nome', expr: '"NOME"', cor: '#ffd9a0', modo: 'alinhado', lado: 'acima', dist: 1, alinh: 'cen', minZ: 18, prior: 2, camada: 'TXT_KML'})]},
       bt: {base: ESTL(), rules: [],
         labels: [ROT({nome: 'Condutor e metragem', expr: EX_REDE, cor: '#a7f3b8', modo: 'alinhado', lado: 'abaixo', dist: 1, alinh: 'cen', prior: 2, camada: 'TXT_BT'})]},

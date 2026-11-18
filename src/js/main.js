@@ -17,6 +17,7 @@ import { initKml } from './modules/kml.js';
 import { initPrint } from './modules/print.js';
 import { initProjeto } from './modules/projeto/index.js';
 import { initSettings } from './modules/views/settings.js';
+import { initMapNotes } from './modules/map-notes.js';
 import { initFieldDialogs } from './ui/field-dialogs.js';
 import { initDbBuildDialog } from './data/db-build-ui.js';
 import { initRowDialog, openRowDialog } from './ui/row-dialog.js';
@@ -351,6 +352,7 @@ async function init() {
     navigate: (view) => setPage(view),
     openRow: (type, index) => openRowDialog(type, index),
   }).init();
+  initMapNotes({ mapView, navigate: (view) => setPage(view) });
 
   initRowDialog({
     onLocate: (type, index) => {
