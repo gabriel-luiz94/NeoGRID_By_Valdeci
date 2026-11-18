@@ -396,17 +396,31 @@ pub fn install(app: &tauri::AppHandle, current: &str) -> Result<PathBuf, String>
     Ok(target)
 }
 
+/// Conteúdo do `.bat` que aplica o instalador depois que o app fechar.
+fn script_de_instalacao(installer: &Path) -> String {
+    // `ping` em vez de `timeout`: o `timeout` falha quando não há console
+    // (o app roda sem janela) e o atraso deixaria de existir.
+    format!(
+        "@echo off\r\nping -n 3 127.0.0.1 >NUL\r\nstart \"\" \"{}\" /S\r\n",
+        installer.display()
+    )
+}
+
 /// Executa o instalador em modo silencioso depois que o app fechar.
 ///
 /// O NSIS não consegue substituir o `.exe` em uso, então o instalador é
-/// iniciado com atraso de ~2 s e o app encerra em seguida.
+/// iniciado com atraso de ~2 s por um `.bat` temporário. Passar o comando
+/// direto ao `cmd` não funciona: o Rust escapa as aspas (`\"`) e o `cmd`
+/// interpreta isso como programa inexistente.
 pub fn launch(installer: &Path) -> Result<(), String> {
-    let script = format!(
-        "ping -n 3 127.0.0.1 >NUL & start \"\" \"{}\" /S",
-        installer.display()
-    );
-    let mut command = std::process::Command::new("cmd");
-    command.args(["/C", &script]);
+    let dir = installer
+        .parent()
+        .ok_or_else(|| "caminho do instalador inválido".to_string())?;
+    let bat = dir.join("aplicar-atualizacao.bat");
+    std::fs::write(&bat, script_de_instalacao(installer))
+        .map_err(|e| format!("preparar instalador: {e}"))?;
+    let mut command = std::process::Command::new("cmd.exe");
+    command.arg("/C").arg(&bat);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt as _;
@@ -444,6 +458,20 @@ mod tests {
         assert_eq!(picked.0, "NeoGrid_3.0.1_x64-setup.exe");
         assert_eq!(picked.1, "u1");
         assert_eq!(picked.2, 7000);
+    }
+
+    #[test]
+    fn script_de_instalacao_cita_caminho() {
+        let script = script_de_instalacao(Path::new(
+            r"C:\Users\a b\AppData\Local\Temp\neogrid-update\NeoGrid_3.0.4_setup.exe",
+        ));
+        assert!(script.starts_with("@echo off\r\n"));
+        assert!(script.contains("ping -n 3 127.0.0.1"));
+        assert!(
+            script.contains("\"C:\\Users\\a b\\AppData\\Local\\Temp\\neogrid-update\\NeoGrid_3.0.4_setup.exe\" /S"),
+            "{script}"
+        );
+        assert!(!script.contains("\\\""), "sem aspas escapadas: {script}");
     }
 
     #[test]
