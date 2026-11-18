@@ -1,6 +1,6 @@
 import { bus } from '../core/bus.js';
 import { esc, fmtInt } from '../core/format.js';
-import { icon } from '../core/dom.js';
+import { icon, closeDialog, openDialog } from '../core/dom.js';
 import { settings } from '../core/settings.js';
 import { toast } from '../ui/toast.js';
 
@@ -134,15 +134,16 @@ function styleForPlacemark(placemark, styles) {
 }
 
 function folderName(element) {
+  const nomes = [];
   let node = element?.parentElement;
   while (node) {
-    if (node.localName === 'Folder' || node.localName === 'Document') {
-      const name = directText(node, 'name');
-      if (name) return name;
+    if (node.localName === 'Folder') {
+      const nome = directText(node, 'name');
+      if (nome) nomes.unshift(nome);
     }
     node = node.parentElement;
   }
-  return '';
+  return nomes.join(' / ');
 }
 
 function geometryFromPlacemark(placemark) {
@@ -271,9 +272,22 @@ export function parseKmlFast(text, fileName = 'arquivo.kml') {
   };
 
   const features = [];
-  const placeRe = /<Placemark\b[^>]*>([\s\S]*?)<\/Placemark>/g;
-  while ((achado = placeRe.exec(src))) {
+  const pastas = [];
+  const tokenRe = /<Folder\b[^>]*>|<\/Folder>|<Placemark\b[^>]*>([\s\S]*?)<\/Placemark>/g;
+  while ((achado = tokenRe.exec(src))) {
+    const token = achado[0];
+    if (token.startsWith('</Folder')) {
+      pastas.pop();
+      continue;
+    }
+    if (token.startsWith('<Folder')) {
+      const inicio = tokenRe.lastIndex;
+      const nomePasta = /^\s*<name>([\s\S]*?)<\/name>/.exec(src.slice(inicio, inicio + 500));
+      pastas.push(nomePasta ? decodeXml(nomePasta[1]).trim() : `Pasta ${pastas.length + 1}`);
+      continue;
+    }
     const corpo = achado[1];
+    const pasta = pastas.filter(Boolean).join(' / ');
     const nome = decodeXml((/<name>([\s\S]*?)<\/name>/.exec(corpo) || [])[1] || '').trim();
     const styleUrl = (/<styleUrl>([\s\S]*?)<\/styleUrl>/.exec(corpo) || [])[1]?.trim() || '';
     let estilo = resolver(styleUrl);
@@ -281,7 +295,7 @@ export function parseKmlFast(text, fileName = 'arquivo.kml') {
       const inline = /<Style>([\s\S]*?)<\/Style>/.exec(corpo);
       if (inline) estilo = readStyleText(inline[1]);
     }
-    const base = { name: nome, folder: '', styleUrl, style: estilo || {}, placemark: features.length };
+    const base = { name: nome, folder: pasta, styleUrl, style: estilo || {}, placemark: features.length };
 
     const linhaRe = /<LineString\b[^>]*>([\s\S]*?)<\/LineString>/g;
     let linha;
@@ -440,14 +454,52 @@ function featureColor(feature, kind, fallback) {
 }
 
 function addLabel(leafletLayer, name, className = 'kml-label') {
-  const estilo = window.ngMapa?.kml();
-  if (!settings.labels || !(estilo ? estilo.rotulos : state.options.showLabels) || !name) return;
+  if (!name) return;
   leafletLayer.bindTooltip(esc(name), {
     permanent: true,
     direction: 'center',
     className,
     opacity: 0.92,
   });
+}
+
+const CFG_ARQUIVO = () => ({
+  hiddenFolders: [],
+  hiddenStyles: [],
+  lineWidth: null,
+  lineColor: '',
+  lineOpacity: null,
+  labels: null,
+  labelSource: 'name',
+  pointSize: null,
+  pointColor: '',
+  polygonOpacity: null,
+  polygonColor: '',
+});
+
+function chaveEstilo(feature) {
+  const url = String(feature.styleUrl || '').replace(/^.*#/, '');
+  if (url) return url;
+  const style = feature.style || {};
+  return `s-${style.width || 0}-${style.lineColor || ''}-${style.polyColor || ''}`;
+}
+
+function cfgDoArquivo(file) {
+  if (!file.settings) file.settings = CFG_ARQUIVO();
+  const cfg = file.settings;
+  if (!Array.isArray(cfg.hiddenFolders)) cfg.hiddenFolders = [];
+  if (!Array.isArray(cfg.hiddenStyles)) cfg.hiddenStyles = [];
+  return cfg;
+}
+
+/** A pasta (ou uma pasta acima dela) está desmarcada? */
+function pastaOculta(cfg, pasta) {
+  if (!pasta) return false;
+  return cfg.hiddenFolders.some((oculta) => pasta === oculta || pasta.startsWith(`${oculta} / `));
+}
+
+function meioLinha(pts) {
+  return pts?.length ? pts[Math.floor(pts.length / 2)] : null;
 }
 
 function render() {
@@ -457,87 +509,113 @@ function render() {
   kmlPane();
   layer = L.layerGroup();
   const visibleFiles = state.files.filter((file) => file.visible !== false);
-  let labels = 0;
+  const k = window.ngMapa?.kml() || {};
+  const raioBase = k.raio ?? 5;
+  let rotulos = 0;
+  const MAX_ROTULOS = 200;
+
+  // Texto do rótulo: opção do arquivo (liga/desliga e origem) sobre a opção geral.
+  const textoRotulo = (cfg, feature) => {
+    if (settings.labels === false) return '';
+    if (cfg.labels === false) return '';
+    if (!(cfg.labels === true || state.options.showLabels)) return '';
+    return (cfg.labelSource === 'folder' ? feature.folder : feature.name) || '';
+  };
 
   // Areas below lines so the lines remain visible on top.
   if (state.options.showPolygons) {
     for (const file of visibleFiles) {
+      const cfg = cfgDoArquivo(file);
       for (const feature of file.features) {
         if (feature.kind !== 'polygon') continue;
-        const color = featureColor(feature, 'polygon', state.options.polygonColor);
+        if (pastaOculta(cfg, feature.folder || '')) continue;
+        if (cfg.hiddenStyles.includes(chaveEstilo(feature))) continue;
+        const color = cfg.polygonColor || featureColor(feature, 'polygon', state.options.polygonColor);
         const polygon = L.polygon(feature.rings, {
           pane: 'kmlPane',
           color,
           weight: 1.8,
           opacity: 0.9,
           fillColor: color,
-          fillOpacity: feature.style?.fill === false ? 0 : 0.14,
+          fillOpacity: cfg.polygonOpacity ?? (feature.style?.fill === false ? 0 : 0.14),
           interactive: false,
         });
         polygon.addTo(layer);
-        if (labels < 200 && feature.name) {
-          addLabel(polygon, feature.name);
-          labels += 1;
+        const texto = textoRotulo(cfg, feature);
+        if (texto && rotulos < MAX_ROTULOS) {
+          addLabel(polygon, texto);
+          rotulos += 1;
         }
       }
     }
   }
 
   if (state.options.showLines) {
-    const k = window.ngMapa?.kml() || {};
-    const totalLinhas = visibleFiles.reduce(
-      (n, file) => n + file.features.reduce((m, f) => m + (f.kind === 'line' ? 1 : 0), 0),
-      0,
-    );
-    if (totalLinhas > 800) {
-      // Arquivos grandes (ex.: rede de gás com milhares de trechos): agrupa por
-      // estilo e desenha em um canvas só, em vez de milhares de camadas SVG.
-      const renderer = L.canvas({ pane: 'kmlPane', padding: 0.3 });
-      const grupos = new Map();
-      for (const file of visibleFiles) {
-        for (const feature of file.features) {
-          if (feature.kind !== 'line') continue;
-          const color = featureColor(feature, 'line', state.options.lineColor);
-          const weight = (k.largKml ? feature.style?.width : 0) || k.larg || 2;
-          const opacity = k.opacKml ? (feature.style?.lineAlpha ?? 0.9) : (k.opac ?? 0.9);
-          const chave = `${color}|${weight}|${opacity}`;
+    for (const file of visibleFiles) {
+      const cfg = cfgDoArquivo(file);
+      const linhas = file.features.filter(
+        (feature) => feature.kind === 'line'
+          && !pastaOculta(cfg, feature.folder || '')
+          && !cfg.hiddenStyles.includes(chaveEstilo(feature)),
+      );
+      if (!linhas.length) continue;
+
+      const cor = (feature) => cfg.lineColor || featureColor(feature, 'line', state.options.lineColor);
+      const peso = (feature) => cfg.lineWidth ?? ((k.largKml ? feature.style?.width : 0) || k.larg || 2);
+      const opac = (feature) => cfg.lineOpacity
+        ?? (k.opacKml ? (feature.style?.lineAlpha ?? 0.9) : (k.opac ?? 0.9));
+
+      if (linhas.length > 800) {
+        // Arquivos grandes (ex.: rede de gás): agrupa por estilo e desenha em
+        // um canvas só; os rótulos (até 200) vão ancorados no meio das linhas.
+        const renderer = L.canvas({ pane: 'kmlPane', padding: 0.3 });
+        const grupos = new Map();
+        for (const feature of linhas) {
+          const chave = `${cor(feature)}|${peso(feature)}|${opac(feature)}`;
           let grupo = grupos.get(chave);
           if (!grupo) {
-            grupo = { color, weight, opacity, segmentos: [] };
+            grupo = { color: cor(feature), weight: peso(feature), opacity: opac(feature), segmentos: [] };
             grupos.set(chave, grupo);
           }
           grupo.segmentos.push(feature.pts);
         }
-      }
-      for (const grupo of grupos.values()) {
-        L.polyline(grupo.segmentos, {
-          pane: 'kmlPane',
-          renderer,
-          color: grupo.color,
-          weight: grupo.weight,
-          opacity: grupo.opacity,
-          interactive: false,
-          smoothFactor: 1,
-        }).addTo(layer);
-      }
-    } else {
-      for (const file of visibleFiles) {
-        for (const feature of file.features) {
-          if (feature.kind !== 'line') continue;
-          const color = featureColor(feature, 'line', state.options.lineColor);
-          const weight = (k.largKml ? feature.style?.width : 0) || k.larg || 2;
-          const opacity = k.opacKml ? (feature.style?.lineAlpha ?? 0.9) : (k.opac ?? 0.9);
+        for (const grupo of grupos.values()) {
+          L.polyline(grupo.segmentos, {
+            pane: 'kmlPane',
+            renderer,
+            color: grupo.color,
+            weight: grupo.weight,
+            opacity: grupo.opacity,
+            interactive: false,
+            smoothFactor: 1,
+          }).addTo(layer);
+        }
+        for (const feature of linhas) {
+          if (rotulos >= MAX_ROTULOS) break;
+          const texto = textoRotulo(cfg, feature);
+          if (!texto) continue;
+          const meio = meioLinha(feature.pts);
+          if (!meio) continue;
+          L.tooltip({ permanent: true, direction: 'center', className: 'kml-label', opacity: 0.92 })
+            .setLatLng(meio)
+            .setContent(esc(texto))
+            .addTo(layer);
+          rotulos += 1;
+        }
+      } else {
+        for (const feature of linhas) {
           const line = L.polyline(feature.pts, {
             pane: 'kmlPane',
-            color,
-            weight,
-            opacity,
+            color: cor(feature),
+            weight: peso(feature),
+            opacity: opac(feature),
             interactive: false,
           });
           line.addTo(layer);
-          if (labels < 200 && feature.name) {
-            addLabel(line, feature.name);
-            labels += 1;
+          const texto = textoRotulo(cfg, feature);
+          if (texto && rotulos < MAX_ROTULOS) {
+            addLabel(line, texto);
+            rotulos += 1;
           }
         }
       }
@@ -546,12 +624,15 @@ function render() {
 
   if (state.options.showPoints) {
     for (const file of visibleFiles) {
+      const cfg = cfgDoArquivo(file);
       for (const feature of file.features) {
         if (feature.kind !== 'point') continue;
-        const color = featureColor(feature, 'point', state.options.pointColor);
+        if (pastaOculta(cfg, feature.folder || '')) continue;
+        if (cfg.hiddenStyles.includes(chaveEstilo(feature))) continue;
+        const color = cfg.pointColor || featureColor(feature, 'point', state.options.pointColor);
         const marker = L.circleMarker([feature.lat, feature.lon], {
           pane: 'kmlPane',
-          radius: window.ngMapa?.kml().raio ?? 5,
+          radius: (cfg.pointSize ?? raioBase * 2) / 2,
           color: '#0b1220',
           weight: 1.4,
           fillColor: color,
@@ -559,9 +640,10 @@ function render() {
           interactive: false,
         });
         marker.addTo(layer);
-        if (labels < 200 && feature.name) {
-          addLabel(marker, feature.name, 'kml-label kml-label-point');
-          labels += 1;
+        const texto = textoRotulo(cfg, feature);
+        if (texto && rotulos < MAX_ROTULOS) {
+          addLabel(marker, texto, 'kml-label kml-label-point');
+          rotulos += 1;
         }
       }
     }
@@ -892,10 +974,259 @@ function renderFiles() {
       </label>
       <div class="kml-file-actions">
         <button class="btn btn-ghost btn-sm" type="button" data-kml-fit>Ir para</button>
+        <button class="icon-btn" type="button" data-kml-edit title="Editar camadas, linhas e rótulos" aria-label="Editar KML">${icon('settings')}</button>
         <button class="icon-btn" type="button" data-kml-remove title="Remover KML" aria-label="Remover KML">${icon('trash')}</button>
       </div>
     </article>`;
   }).join('');
+}
+
+// ---- Editor do arquivo (pastas, linhas, rótulos) ---------------------------
+function elNovo(tag, props = {}, ...filhos) {
+  const node = document.createElement(tag);
+  for (const [chave, valor] of Object.entries(props || {})) {
+    if (chave === 'class') node.className = valor;
+    else if (chave === 'text') node.textContent = valor;
+    else if (chave.startsWith('on')) node[chave] = valor;
+    else if (valor === true) node.setAttribute(chave, '');
+    else if (valor !== false && valor != null) node.setAttribute(chave, valor);
+  }
+  for (const filho of filhos.flat()) {
+    if (filho == null) continue;
+    node.append(filho.nodeType ? filho : document.createTextNode(String(filho)));
+  }
+  return node;
+}
+
+function pastasDoArquivo(file) {
+  const mapa = new Map();
+  for (const feature of file.features) {
+    const nome = feature.folder || '(sem pasta)';
+    let info = mapa.get(nome);
+    if (!info) {
+      info = { nome, linhas: 0, pontos: 0, areas: 0 };
+      mapa.set(nome, info);
+    }
+    if (feature.kind === 'line') info.linhas += 1;
+    else if (feature.kind === 'point') info.pontos += 1;
+    else info.areas += 1;
+  }
+  return [...mapa.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+let editorTimer = 0;
+const atualizarMapaEditor = () => {
+  clearTimeout(editorTimer);
+  editorTimer = setTimeout(() => render(), 110);
+};
+
+function abrirEditorKml(file) {
+  const dlg = document.querySelector('#kmlEditDialog');
+  const body = document.querySelector('#kmlEditBody');
+  if (!dlg || !body) return;
+  const cfg = cfgDoArquivo(file);
+  const k = window.ngMapa?.kml() || {};
+  const titulo = document.querySelector('#kmlEditTitle');
+  const subtitulo = document.querySelector('#kmlEditSubtitle');
+  if (titulo) titulo.textContent = `Editar ${file.name}`;
+  if (subtitulo) {
+    subtitulo.textContent = `${fmtInt(file.counts?.lines || 0)} linhas · ${fmtInt(file.counts?.points || 0)} pontos · ${fmtInt(file.counts?.polygons || 0)} áreas`;
+  }
+  body.replaceChildren();
+
+  const irPara = (features) => {
+    const bounds = featureBounds(features);
+    if (!bounds) return;
+    closeDialog(dlg);
+    fitBounds(bounds);
+  };
+
+  // ---- Camadas (pastas) ----
+  const pastas = pastasDoArquivo(file);
+  const listaPastas = elNovo('div', { class: 'kml-edit-pastas' });
+  for (const info of pastas) {
+    const ocultaAcima = cfg.hiddenFolders.some((nome) => info.nome.startsWith(`${nome} / `));
+    const marcada = !cfg.hiddenFolders.includes(info.nome);
+    const caixa = elNovo('input', { type: 'checkbox' });
+    caixa.checked = marcada;
+    caixa.addEventListener('change', () => {
+      cfg.hiddenFolders = cfg.hiddenFolders.filter((nome) => nome !== info.nome);
+      if (!caixa.checked) cfg.hiddenFolders.push(info.nome);
+      atualizarMapaEditor();
+    });
+    const ver = elNovo('button', { type: 'button', class: 'ghost-btn', text: 'Ir' });
+    ver.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      irPara(file.features.filter((f) => (f.folder || '(sem pasta)') === info.nome || (f.folder || '').startsWith(`${info.nome} / `)));
+    });
+    const contagem = [
+      info.linhas ? `${fmtInt(info.linhas)} linhas` : '',
+      info.pontos ? `${fmtInt(info.pontos)} pontos` : '',
+      info.areas ? `${fmtInt(info.areas)} áreas` : '',
+    ].filter(Boolean).join(' · ');
+    listaPastas.append(elNovo('label', { class: 'kml-edit-pasta', title: ocultaAcima ? 'Oculta por uma pasta acima' : '' },
+      caixa,
+      elNovo('span', { text: info.nome + (ocultaAcima ? ' (oculta pela pasta acima)' : '') }),
+      elNovo('small', { text: contagem }),
+      ver));
+  }
+  body.append(elNovo('section', { class: 'kml-edit-sec' },
+    elNovo('h4', { text: `Camadas do arquivo (${pastas.length})` }),
+    elNovo('p', { class: 'field-hint', text: 'Desmarque uma pasta para esconder as linhas dela no mapa e no DXF.' }),
+    listaPastas));
+
+  // ---- Camadas por estilo (o que diferencia as linhas dentro da pasta) ----
+  const estilos = new Map();
+  for (const feature of file.features) {
+    if (feature.kind !== 'line') continue;
+    const chave = chaveEstilo(feature);
+    let info = estilos.get(chave);
+    if (!info) {
+      const estilo = feature.style || {};
+      info = {
+        chave,
+        nome: feature.styleUrl ? String(feature.styleUrl).replace(/^.*#/, '') : 'sem estilo',
+        largura: estilo.width || 0,
+        cor: estilo.lineColor || '',
+        linhas: 0,
+      };
+      estilos.set(chave, info);
+    }
+    info.linhas += 1;
+  }
+  const listaEstilos = elNovo('div', { class: 'kml-edit-pastas' });
+  for (const info of [...estilos.values()].sort((a, b) => b.linhas - a.linhas)) {
+    const caixa = elNovo('input', { type: 'checkbox' });
+    caixa.checked = !cfg.hiddenStyles.includes(info.chave);
+    caixa.addEventListener('change', () => {
+      cfg.hiddenStyles = cfg.hiddenStyles.filter((chave) => chave !== info.chave);
+      if (!caixa.checked) cfg.hiddenStyles.push(info.chave);
+      atualizarMapaEditor();
+    });
+    const amostra = elNovo('i', { class: 'kml-edit-cor' });
+    if (/^#[0-9a-f]{6}$/i.test(info.cor)) amostra.style.background = info.cor;
+    else amostra.style.visibility = 'hidden';
+    const detalhe = `${fmtInt(info.linhas)} linhas${info.largura ? ` · ${info.largura} px` : ''}`;
+    listaEstilos.append(elNovo('label', { class: 'kml-edit-pasta' },
+      caixa, amostra, elNovo('span', { text: info.nome }), elNovo('small', { text: detalhe })));
+  }
+  body.append(elNovo('section', { class: 'kml-edit-sec' },
+    elNovo('h4', { text: `Camadas por estilo (${estilos.size})` }),
+    elNovo('p', { class: 'field-hint', text: 'Cada estilo do arquivo (espessura e cor) vira uma camada; desmarque para esconder.' }),
+    listaEstilos));
+
+  // ---- Linhas ----
+  const larguraBase = k.larg || 2;
+  const linhaLargura = elNovo('input', { type: 'range', min: '0.5', max: '10', step: '0.5' });
+  linhaLargura.value = String(cfg.lineWidth ?? larguraBase);
+  const larguraValor = elNovo('span', { class: 'kml-edit-val', text: Number(linhaLargura.value).toFixed(1) });
+  linhaLargura.addEventListener('input', () => {
+    cfg.lineWidth = Number(linhaLargura.value);
+    larguraValor.textContent = Number(linhaLargura.value).toFixed(1);
+    atualizarMapaEditor();
+  });
+  const corLinha = elNovo('input', { type: 'color' });
+  corLinha.value = /^#[0-9a-f]{6}$/i.test(cfg.lineColor) ? cfg.lineColor : (k.linha || '#38bdf8');
+  corLinha.addEventListener('input', () => { cfg.lineColor = corLinha.value; atualizarMapaEditor(); });
+  const opacidade = elNovo('input', { type: 'range', min: '0.1', max: '1', step: '0.05' });
+  opacidade.value = String(cfg.lineOpacity ?? (k.opac ?? 0.9));
+  const opacidadeValor = elNovo('span', { class: 'kml-edit-val', text: `${Math.round(Number(opacidade.value) * 100)}%` });
+  opacidade.addEventListener('input', () => {
+    cfg.lineOpacity = Number(opacidade.value);
+    opacidadeValor.textContent = `${Math.round(Number(opacidade.value) * 100)}%`;
+    atualizarMapaEditor();
+  });
+  const padraoLinhas = elNovo('button', { type: 'button', class: 'ghost-btn', text: 'Restaurar padrão' });
+  padraoLinhas.addEventListener('click', () => {
+    cfg.lineWidth = null;
+    cfg.lineColor = '';
+    cfg.lineOpacity = null;
+    render();
+    abrirEditorKml(file);
+  });
+  body.append(elNovo('section', { class: 'kml-edit-sec' },
+    elNovo('h4', { text: 'Linhas' }),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('label', { text: 'Espessura (px)' }), linhaLargura, larguraValor),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('label', { text: 'Cor' }), corLinha, elNovo('span', { class: 'kml-edit-val', text: cfg.lineColor ? '' : 'do estilo' })),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('label', { text: 'Opacidade' }), opacidade, opacidadeValor),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('span', { class: 'field-hint', text: 'Vale só para este arquivo; o Estilo continua valendo para os demais.' }), padraoLinhas)));
+
+  // ---- Rótulos ----
+  const rotuloLigado = cfg.labels === true || (cfg.labels == null && state.options.showLabels);
+  const caixaRotulo = elNovo('input', { type: 'checkbox' });
+  caixaRotulo.checked = rotuloLigado;
+  const fonteRotulo = elNovo('select', { class: 'select select-sm' });
+  fonteRotulo.append(
+    elNovo('option', { value: 'name', text: 'Nome do elemento' }),
+    elNovo('option', { value: 'folder', text: 'Nome da pasta' }),
+  );
+  fonteRotulo.value = cfg.labelSource || 'name';
+  caixaRotulo.addEventListener('change', () => { cfg.labels = caixaRotulo.checked; atualizarMapaEditor(); });
+  fonteRotulo.addEventListener('change', () => { cfg.labelSource = fonteRotulo.value; atualizarMapaEditor(); });
+  body.append(elNovo('section', { class: 'kml-edit-sec' },
+    elNovo('h4', { text: 'Rótulos' }),
+    elNovo('div', { class: 'kml-edit-row' },
+      elNovo('label', null, caixaRotulo, elNovo('span', { text: 'Mostrar rótulos nas linhas' })),
+      fonteRotulo),
+    elNovo('p', { class: 'field-hint', text: 'Até 200 rótulos por arquivo. Em arquivos grandes eles são ancorados no meio de cada linha.' })));
+
+  // ---- Pontos e áreas ----
+  const tamanhoPonto = elNovo('input', { type: 'range', min: '2', max: '20', step: '1' });
+  tamanhoPonto.value = String(cfg.pointSize ?? (k.raio ?? 5) * 2);
+  const tamanhoValor = elNovo('span', { class: 'kml-edit-val', text: `${tamanhoPonto.value}px` });
+  tamanhoPonto.addEventListener('input', () => {
+    cfg.pointSize = Number(tamanhoPonto.value);
+    tamanhoValor.textContent = `${tamanhoPonto.value}px`;
+    atualizarMapaEditor();
+  });
+  const corPonto = elNovo('input', { type: 'color' });
+  corPonto.value = /^#[0-9a-f]{6}$/i.test(cfg.pointColor) ? cfg.pointColor : (k.ponto || '#f472b6');
+  corPonto.addEventListener('input', () => { cfg.pointColor = corPonto.value; atualizarMapaEditor(); });
+  const opacidadeArea = elNovo('input', { type: 'range', min: '0', max: '0.6', step: '0.02' });
+  opacidadeArea.value = String(cfg.polygonOpacity ?? 0.14);
+  const areaValor = elNovo('span', { class: 'kml-edit-val', text: `${Math.round(Number(opacidadeArea.value) * 100)}%` });
+  opacidadeArea.addEventListener('input', () => {
+    cfg.polygonOpacity = Number(opacidadeArea.value);
+    areaValor.textContent = `${Math.round(Number(opacidadeArea.value) * 100)}%`;
+    atualizarMapaEditor();
+  });
+  body.append(elNovo('section', { class: 'kml-edit-sec' },
+    elNovo('h4', { text: 'Pontos e áreas' }),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('label', { text: 'Tamanho do ponto' }), tamanhoPonto, tamanhoValor),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('label', { text: 'Cor do ponto' }), corPonto),
+    elNovo('div', { class: 'kml-edit-row' }, elNovo('label', { text: 'Preenchimento da área' }), opacidadeArea, areaValor)));
+
+  // ---- Lista das linhas ----
+  const linhasComIndice = file.features
+    .map((feature, indice) => ({ feature, indice }))
+    .filter(({ feature }) => feature.kind === 'line');
+  const busca = elNovo('input', { type: 'search', class: 'input', placeholder: 'Filtrar por nome ou pasta…' });
+  const listaLinhas = elNovo('div', { class: 'kml-edit-linhas' });
+  const desenharLinhas = () => {
+    const termo = busca.value.trim().toLowerCase();
+    const filtradas = linhasComIndice
+      .filter(({ feature }) => !termo
+        || String(feature.name || '').toLowerCase().includes(termo)
+        || String(feature.folder || '').toLowerCase().includes(termo))
+      .slice(0, 300);
+    listaLinhas.replaceChildren(...filtradas.map(({ feature, indice }) => {
+      const ver = elNovo('button', { type: 'button', class: 'ghost-btn', text: 'Ir' });
+      ver.addEventListener('click', () => irPara([feature]));
+      return elNovo('div', { class: 'kml-edit-linha' },
+        elNovo('span', { text: feature.name || `Linha ${indice + 1}` }),
+        elNovo('small', { text: feature.folder || '' }),
+        ver);
+    }));
+    if (!filtradas.length) listaLinhas.append(elNovo('p', { class: 'field-hint', text: 'Nenhuma linha encontrada.' }));
+  };
+  busca.addEventListener('input', desenharLinhas);
+  desenharLinhas();
+  body.append(elNovo('section', { class: 'kml-edit-sec' },
+    elNovo('h4', { text: `Linhas do arquivo (${fmtInt(linhasComIndice.length)})` }),
+    busca, listaLinhas));
+
+  openDialog(dlg);
 }
 
 function persistOptions() {
@@ -1048,6 +1379,10 @@ export function initKml(options = {}) {
     if (!card) return;
     const file = state.files.find((item) => item.id === card.dataset.kmlFile);
     if (!file) return;
+    if (event.target.closest('[data-kml-edit]')) {
+      abrirEditorKml(file);
+      return;
+    }
     if (event.target.closest('[data-kml-fit]')) {
       fitFile(file);
       return;

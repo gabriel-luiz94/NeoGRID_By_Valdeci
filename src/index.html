@@ -1185,6 +1185,24 @@
     </form>
   </dialog>
 
+  <dialog class="modal modal-lg" id="kmlEditDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-settings"/></svg></div>
+        <div class="modal-head-copy">
+          <h2 id="kmlEditTitle">Editar KML</h2>
+          <p id="kmlEditSubtitle">Camadas, linhas, rótulos e pontos</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body kml-edit" id="kmlEditBody"></div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info">As mudanças aparecem no mapa na hora.</span>
+        <div class="modal-actions"><button class="btn btn-primary" data-close>Fechar</button></div>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog class="modal modal-lg" id="dbBuildDialog">
     <form method="dialog" class="modal-shell" id="dbBuildForm">
       <header class="modal-head">
