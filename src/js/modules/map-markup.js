@@ -245,9 +245,20 @@ export function initMapMarkup(options = {}) {
   const larguraInput = document.querySelector('#markupWidth');
   larguraInput?.addEventListener('input', () => { largura = Number(larguraInput.value) || 3; });
   const fonteInput = document.querySelector('#markupFont');
-  fonteInput?.addEventListener('input', () => { tamanhoTexto = Number(fonteInput.value) || 16; });
+  fonteInput?.addEventListener('input', () => {
+    tamanhoTexto = Number(fonteInput.value) || 16;
+    // Ajusta também os textos já colocados, sem precisar apagar.
+    document.querySelectorAll('.mk-text span').forEach((span) => {
+      span.style.fontSize = `${tamanhoTexto}px`;
+    });
+  });
   const fundoInput = document.querySelector('#markupBg');
-  fundoInput?.addEventListener('change', () => { comFundo = fundoInput.checked; });
+  fundoInput?.addEventListener('change', () => {
+    comFundo = fundoInput.checked;
+    document.querySelectorAll('.mk-text').forEach((el) => {
+      el.classList.toggle('sem-fundo', !comFundo);
+    });
+  });
 
   document.querySelector('#markupClear')?.addEventListener('click', () => {
     if (!camada?.getLayers().length) return;
