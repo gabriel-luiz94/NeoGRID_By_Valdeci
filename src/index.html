@@ -77,6 +77,9 @@
     <symbol id="i-ruler" viewBox="0 0 24 24"><path d="m3 15 12-12 6 6L9 21l-6-6Z"/><path d="m7 11 2 2M10 8l2 2M13 5l2 2"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2"/></symbol>
     <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="m12 19 7-7a2.8 2.8 0 0 0-4-4l-7 7-1 5 5-1Z"/><path d="m14 6 4 4M4 20h4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
+    <symbol id="i-line" viewBox="0 0 24 24"><path d="M4 20 20 4"/></symbol>
     <symbol id="i-hard-drive" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h.01M11 15h.01"/><path d="M3 11h18"/></symbol>
     <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
@@ -435,6 +438,9 @@
                   </button>
                   <button class="map-tool tooltip" id="mapNote" data-tooltip="Anotações no mapa" aria-label="Anotações no mapa">
                     <svg class="icon"><use href="#i-file-text"/></svg>
+                  </button>
+                  <button class="map-tool tooltip" id="mapMarkup" data-tooltip="Marcar o mapa (texto, seta, linha, desenho)" aria-label="Marcar o mapa">
+                    <svg class="icon"><use href="#i-pen"/></svg>
                   </button>
                   <button class="map-tool tooltip" id="mapPrint" data-tooltip="Imprimir / PDF" aria-label="Imprimir ou salvar PDF">
                     <svg class="icon"><use href="#i-printer"/></svg>
@@ -1309,6 +1315,50 @@
       <p class="auth-foot" id="authFoot">Conexão não configurada</p>
     </div>
   </div>
+
+  <!-- ── Marcações no mapa (modo temporário) ───────────────────────── -->
+  <div class="markup-bar" id="markupBar" hidden role="toolbar" aria-label="Marcações no mapa">
+    <div class="markup-tools">
+      <button class="markup-tool is-active" type="button" data-markup-tool="text" title="Texto"><svg class="icon"><use href="#i-file-text"/></svg></button>
+      <button class="markup-tool" type="button" data-markup-tool="arrow" title="Seta"><svg class="icon"><use href="#i-arrow"/></svg></button>
+      <button class="markup-tool" type="button" data-markup-tool="line" title="Linha"><svg class="icon"><use href="#i-line"/></svg></button>
+      <button class="markup-tool" type="button" data-markup-tool="pen" title="Desenho livre"><svg class="icon"><use href="#i-pen"/></svg></button>
+    </div>
+    <span class="markup-sep"></span>
+    <label class="markup-op" title="Cor do traço e do texto">Cor <input type="color" id="markupColor" value="#f5a524"></label>
+    <label class="markup-op" title="Espessura do traço">Traço <input type="range" id="markupWidth" min="1" max="8" step="1" value="3"></label>
+    <label class="markup-op" title="Tamanho do texto">Texto <input type="range" id="markupFont" min="10" max="40" step="1" value="16"></label>
+    <label class="markup-op"><input type="checkbox" id="markupBg" checked> Fundo</label>
+    <span class="markup-sep"></span>
+    <button class="markup-btn" type="button" id="markupClear" title="Apagar todas as marcações"><svg class="icon"><use href="#i-trash"/></svg> Limpar</button>
+    <button class="markup-btn is-primary" type="button" id="markupExit" title="Sair e apagar as marcações">Sair</button>
+  </div>
+
+  <dialog class="modal" id="markupTextDialog">
+    <form method="dialog" class="modal-shell">
+      <header class="modal-head">
+        <div class="modal-head-icon"><svg class="icon"><use href="#i-file-text"/></svg></div>
+        <div class="modal-head-copy">
+          <h2>Texto no mapa</h2>
+          <p>Fundo e tamanho definidos na barra de marcação</p>
+        </div>
+        <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <label class="field">
+          <span>Texto</span>
+          <textarea class="input note-text" id="markupText" rows="3" placeholder="Ex.: ponto de travessia" data-autofocus></textarea>
+        </label>
+      </div>
+      <footer class="modal-foot">
+        <span class="modal-foot-info">Some ao sair do modo de marcação.</span>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-close>Cancelar</button>
+          <button class="btn btn-primary" type="button" id="markupTextOk">Adicionar</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
 
   <!-- ── Aviso de atualização ─────────────────────────────────────── -->
   <div class="update-notice" id="updateNotice" role="alert" hidden>

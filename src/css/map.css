@@ -1917,3 +1917,137 @@ body.is-printing .kml-label {
   line-height: 1.5;
   resize: vertical;
 }
+/* === Modo de marcação (texto, seta, linha, desenho) ============= */
+.markup-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--statusbar-h) + 14px);
+  z-index: 4700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+  backdrop-filter: blur(14px);
+}
+
+.markup-bar[hidden] { display: none !important; }
+
+.markup-tools { display: flex; gap: 2px; }
+
+.markup-tool {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.markup-tool:hover { background: var(--surface-hover); color: var(--text); }
+
+.markup-tool.is-active {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.markup-tool .icon { width: 15px; height: 15px; }
+
+.markup-sep { width: 1px; height: 20px; background: var(--border-strong); }
+
+.markup-op {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+
+.markup-op input[type="range"] { width: 70px; }
+
+.markup-op input[type="color"] {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+}
+
+.markup-op input[type="checkbox"] { width: 13px; height: 13px; accent-color: var(--accent); }
+
+.markup-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.markup-btn:hover { background: var(--surface-hover); color: var(--text); }
+
+.markup-btn.is-primary {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.markup-btn .icon { width: 12px; height: 12px; }
+
+body.is-printing .markup-bar { display: none !important; }
+
+/* Itens desenhados */
+.mk-text span {
+  display: inline-block;
+  max-width: 280px;
+  padding: 2px 6px;
+  border: 1px solid rgba(16, 33, 45, .35);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .94);
+  color: #10212d;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+
+.mk-text.sem-fundo span {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--mk-cor, #f5a524);
+  text-shadow: 0 1px 2px #000, 0 0 4px #000;
+}
+
+.mk-arrow span {
+  display: block;
+  width: 0;
+  height: 0;
+  border-right: 7px solid transparent;
+  border-bottom: 15px solid currentColor;
+  border-left: 7px solid transparent;
+  transform-origin: 50% 50%;
+}
+
+body.is-printing .mk-text span {
+  border-color: rgba(16, 33, 45, .4) !important;
+  background: #fff !important;
+  color: #10212d !important;
+  box-shadow: none;
+}
