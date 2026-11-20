@@ -51,22 +51,58 @@ let mapView = null;
 let kmlApi = null;
 let printApi = null;
 let projectApi = null;
+let projectModule = null;
 let currentView = 'map';
 let statusTimer = 0;
+
+/** Um único item ativo no menu: a vista atual ou o painel aberto sobre o mapa. */
+function syncNavActive() {
+  const sp = $('#sp');
+  const cons = $('#cons');
+  const prj = $('#prj');
+  const painel = currentView === 'map'
+    ? (sp && !sp.hidden ? 'estilos' : cons && !cons.hidden ? 'consulta' : prj && !prj.hidden ? 'projeto' : null)
+    : null;
+  $$('.sidebar-nav .nav-item').forEach((item) => {
+    const key = item.dataset.view || item.dataset.nav;
+    const active = painel ? key === painel : Boolean(item.dataset.view) && item.dataset.view === currentView;
+    item.classList.toggle('is-active', active);
+  });
+}
+
+/** Fecha um painel aberto sobre o mapa. */
+function closeMapPanel(name) {
+  if (name === 'estilos') {
+    if (typeof window.fecharSP === 'function') window.fecharSP();
+    else {
+      const sp = $('#sp');
+      if (sp) sp.hidden = true;
+      document.body.classList.remove('sp-open');
+    }
+    return;
+  }
+  const alvo = name === 'consulta' ? $('#cons') : name === 'projeto' ? $('#prj') : null;
+  if (alvo) alvo.hidden = true;
+}
+
+/** Fecha os painéis abertos sobre o mapa e volta ao mapa operacional. */
+function closeMapPanels() {
+  closeMapPanel('estilos');
+  closeMapPanel('consulta');
+  closeMapPanel('projeto');
+}
 
 function setPage(view) {
   const config = VIEW_CONFIG[view] || VIEW_CONFIG.map;
   $('#pageEyebrow').textContent = config.eyebrow;
   $('#pageTitle').textContent = config.title;
   $('#pageSubtitle').textContent = config.subtitle;
-  $$('.sidebar-nav .nav-item[data-view]').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.view === view);
-  });
+  currentView = view;
+  syncNavActive();
   $$('.view').forEach((section) => {
     section.classList.toggle('is-active', section.dataset.view === view);
   });
   document.body.classList.toggle('is-view-map', view === 'map');
-  currentView = view;
   bus.emit('ui:view', view);
   if (view !== 'map' && $('#statusText')?.textContent.startsWith('Selecionado:')) {
     setStatus('Pronto');
@@ -133,10 +169,6 @@ function setStatus(text, type = 'ready') {
 }
 
 function bindShell() {
-  $$('.sidebar-nav .nav-item[data-view]').forEach((button) => {
-    button.addEventListener('click', () => setPage(button.dataset.view));
-  });
-
   document.addEventListener('click', (event) => {
     const target = event.target.closest('[data-goto]');
     if (target) {
@@ -154,13 +186,59 @@ function bindShell() {
     } catch {
       /* sem armazenamento */
     }
+    // O painel de camadas acompanha o menu: menu recolhido, mapa mais largo.
+    mapView?.setPanelHidden(collapsed);
     setTimeout(() => mapView?.invalidate(), 320);
   };
+  let iniciarRecolhido = false;
   try {
-    if (localStorage.getItem(collapsedKey) === '1') shell.classList.add('is-collapsed');
+    iniciarRecolhido = localStorage.getItem(collapsedKey) === '1';
   } catch {
     /* sem armazenamento */
   }
+  setCollapsed(iniciarRecolhido);
+
+  $$('.sidebar-nav .nav-item').forEach((button) => {
+    button.addEventListener('click', () => {
+      const recolhido = shell.classList.contains('is-collapsed');
+      const ativo = button.classList.contains('is-active');
+      const navPanel = button.dataset.nav;
+
+      // Itens que abrem painéis sobre o mapa (Projeto, Consultar, Estilos).
+      if (navPanel) {
+        const alvo = navPanel === 'projeto' ? $('#prj') : navPanel === 'consulta' ? $('#cons') : $('#sp');
+        const aberto = currentView === 'map' && Boolean(alvo && !alvo.hidden);
+        if (recolhido) {
+          setCollapsed(false);
+          if (aberto) return;
+        }
+        if (aberto) {
+          closeMapPanel(navPanel);
+          return;
+        }
+        if (navPanel === 'projeto') projectModule?.abrir();
+        else if (navPanel === 'consulta') projectModule?.consulta();
+        else bus.emit('labels:open');
+        return;
+      }
+
+      if (recolhido) setCollapsed(false);
+      else if (ativo) {
+        setCollapsed(true);
+        return;
+      }
+      if (button.dataset.view === 'map') closeMapPanels();
+      setPage(button.dataset.view);
+    });
+  });
+
+  // Os painéis sobre o mapa (Projeto, Consultar, Estilos) também acendem no menu.
+  const paineis = $('#ngPaineis');
+  if (paineis) {
+    new MutationObserver(() => syncNavActive())
+      .observe(paineis, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  }
+
   $('#sidebarCollapse')?.addEventListener('click', () => setCollapsed(true));
   $('#sidebarExpand')?.addEventListener('click', () => setCollapsed(false));
 
@@ -375,7 +453,7 @@ async function init() {
   });
   kmlApi = initKml({ mapView, navigate: (view) => setPage(view) });
   printApi = initPrint({ mapView, navigate: (view) => setPage(view) });
-  initProjeto({ mapView, navigate: (view) => setPage(view) });
+  projectModule = initProjeto({ mapView, navigate: (view) => setPage(view) });
   initExports();
   wireCsvExport();
   initSettings();

@@ -140,6 +140,8 @@ export class MapView {
       }
     }
     this.map.getPane('tilePane').style.opacity = String(1 - this.basemapOpacity / 100);
+    // Sem fundo o mapa vira uma folha branca, mesmo no tema escuro.
+    document.body.classList.toggle('is-basemap-none', definition.id === 'none');
     this.syncBasemapGrid();
     if (!silent) updateSetting('basemap', definition.id);
   }
@@ -173,28 +175,14 @@ export class MapView {
   }
 
   restoreMapPanel() {
-    let hidden = false;
-    try {
-      hidden = localStorage.getItem('neogrid.ui.map-panel-hidden') === '1';
-    } catch {
-      hidden = false;
-    }
-    this.setPanelHidden(hidden, { persist: false, refresh: false });
+    // O painel de camadas segue o menu lateral; começa aberto e só recolhe com ele.
+    this.setPanelHidden(false, { refresh: false });
   }
 
-  setPanelHidden(hidden, { persist = true, refresh = true } = {}) {
+  setPanelHidden(hidden, { refresh = true } = {}) {
     this.panelHidden = Boolean(hidden);
     const layout = document.querySelector('.map-layout');
     layout?.classList.toggle('is-panel-hidden', this.panelHidden);
-    const button = document.querySelector('#mapPanelToggle');
-    if (button) button.dataset.tooltip = this.panelHidden ? 'Mostrar painel de camadas' : 'Ocultar painel de camadas';
-    if (persist) {
-      try {
-        localStorage.setItem('neogrid.ui.map-panel-hidden', this.panelHidden ? '1' : '0');
-      } catch {
-        /* sem armazenamento */
-      }
-    }
     if (refresh) setTimeout(() => this.invalidate(), 30);
   }
 
@@ -264,12 +252,6 @@ export class MapView {
     document.querySelector('#mapScale1000')?.addEventListener('click', () => this.goToScale(settings.scale));
     document.querySelector('#mapLabels')?.addEventListener('click', () => {
       bus.emit('labels:open');
-    });
-    document.querySelector('#mapPanelToggle')?.addEventListener('click', () => {
-      this.setPanelHidden(!this.panelHidden);
-    });
-    document.querySelector('#mapPanelCollapse')?.addEventListener('click', () => {
-      this.setPanelHidden(true);
     });
     document.querySelector('#mapFullscreen')?.addEventListener('click', () => this.toggleFullscreen());
     document.addEventListener('fullscreenchange', () => {

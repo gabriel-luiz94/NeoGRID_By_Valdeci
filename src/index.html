@@ -158,11 +158,11 @@
           <span class="nav-text">Exportações</span>
           <span class="nav-kbd">2</span>
         </button>
-        <button class="nav-item" id="navProjeto" title="Projeto: edição, arruamento e pacote de entrega" type="button">
+        <button class="nav-item" id="navProjeto" data-nav="projeto" title="Projeto: edição, arruamento e pacote de entrega" type="button">
           <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17zM14 8l3 3"/></svg></span>
           <span class="nav-text">Projeto</span>
         </button>
-        <button class="nav-item" id="navConsulta" title="Consultar por expressão ou SQL" type="button">
+        <button class="nav-item" id="navConsulta" data-nav="consulta" title="Consultar por expressão ou SQL" type="button">
           <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
           <span class="nav-text">Consultar</span>
         </button>
@@ -170,7 +170,7 @@
           <span class="nav-icon"><svg class="icon"><use href="#i-kml"/></svg></span>
           <span class="nav-text">KML/KMZ</span>
         </button>
-        <button class="nav-item" id="navEstilos" title="Cores, símbolos, blocos e rótulos do mapa, do projeto e do DXF" type="button">
+        <button class="nav-item" id="navEstilos" data-nav="estilos" title="Cores, símbolos, blocos e rótulos do mapa, do projeto e do DXF" type="button">
           <span class="nav-icon"><svg class="icon"><use href="#i-tag"/></svg></span>
           <span class="nav-text">Estilos</span>
         </button>
@@ -317,9 +317,6 @@
                 <button class="panel-tab is-active" data-panel-tab="layers" role="tab">Camadas</button>
                 <button class="panel-tab" data-panel-tab="basemap" role="tab">Fundo</button>
                 <button class="panel-tab" data-panel-tab="display" role="tab">Exibição</button>
-                <button class="icon-btn panel-collapse" id="mapPanelCollapse" title="Recolher painel" aria-label="Recolher painel">
-                  <svg class="icon"><use href="#i-chevron-left"/></svg>
-                </button>
               </div>
               <div class="map-panel-scroll">
                 <div class="panel-pane is-active" data-panel="layers">
@@ -345,9 +342,6 @@
                   <div class="panel-section">
                     <div class="panel-section-head"><span>Resumo do conjunto</span></div>
                     <div class="map-summary" id="mapStats"></div>
-                  </div>
-                  <div class="panel-quick-links">
-                    <button class="link-btn" data-goto="exports">Exportações <svg class="icon"><use href="#i-arrow-right"/></svg></button>
                   </div>
                 </div>
 
@@ -415,9 +409,6 @@
 
               <div class="map-float-toolbar">
                 <div class="toolbar-group">
-                  <button class="map-tool tooltip" id="mapPanelToggle" data-tooltip="Ocultar painel de camadas" aria-label="Mostrar ou ocultar painel de camadas">
-                    <svg class="icon"><use href="#i-panel-left"/></svg>
-                  </button>
                   <button class="map-tool tooltip" id="mapFit" data-tooltip="Ir para os dados (F)" aria-label="Ir para os dados">
                     <svg class="icon"><use href="#i-crosshair"/></svg>
                   </button>

@@ -53,25 +53,6 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.panel-collapse {
-  width: 26px;
-  height: 28px;
-  flex: none;
-  margin-left: 2px;
-  border-radius: 5px;
-  color: var(--faint);
-}
-
-.panel-collapse:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-.panel-collapse .icon {
-  width: 13px;
-  height: 13px;
-}
-
 .map-panel-scroll {
   flex: 1;
   min-height: 0;
@@ -470,6 +451,12 @@
 }
 
 /* ═══ Palco do mapa ══════════════════════════════════════════════ */
+/* Sem mapa de fundo o palco é branco, com grade discreta, inclusive no tema escuro. */
+body.is-basemap-none {
+  --map-bg: #ffffff;
+  --map-grid: rgba(15, 23, 42, .06);
+}
+
 .map-stage {
   position: relative;
   min-width: 0;
@@ -1759,19 +1746,6 @@
   font-weight: 550;
 }
 
-.panel-quick-links {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
-.panel-quick-links .link-btn {
-  justify-content: space-between;
-  padding: 5px 2px;
-}
-
 .panel-details {
   border-top: 1px solid var(--border);
   padding-top: 10px;
@@ -1841,10 +1815,6 @@
 
 .panel-pane.is-active {
   min-height: 100%;
-}
-
-.panel-pane.is-active .panel-quick-links {
-  margin-top: auto;
 }
 
 /* === Anotações no mapa ========================================== */

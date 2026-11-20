@@ -609,29 +609,15 @@ export function initProjeto(options) {
     },
     colunaProjeto: (ligada) => {
       const layout = document.querySelector('.map-layout');
-      if (layout?.classList.contains('is-prj') !== ligada) {
-        // No projeto o mapa precisa de largura: a barra lateral recolhe e volta ao estado anterior ao sair.
-        const casca = $('#appShell');
-        if (ligada) {
-          estado.barraRecolhida = casca?.classList.contains('is-collapsed');
-          casca?.classList.add('is-collapsed');
-        } else if (!estado.barraRecolhida) {
-          casca?.classList.remove('is-collapsed');
-        }
-      }
       layout?.classList.toggle('is-prj', ligada);
       document.body.classList.toggle('is-projeto', ligada);
-      $('#navProjeto')?.classList.toggle('is-active', ligada && !$('#prj').hidden);
-      $('#navConsulta')?.classList.toggle('is-active', ligada && !$('#cons').hidden);
-      $('#navEstilos')?.classList.toggle('is-active', ligada && !$('#sp').hidden);
+      // O item ativo do menu é sincronizado pela casca (main.js), que também mantém o menu aberto.
     },
   };
   mapView.clickCapture = () => (typeof ngCapturando === 'function' ? ngCapturando() : false);
 
-  $('#navProjeto')?.addEventListener('click', abrirProjeto);
   $('#mapProjeto')?.addEventListener('click', abrirProjeto);
   $('#exportPacoteGo')?.addEventListener('click', abrirProjeto);
-  $('#navConsulta')?.addEventListener('click', abrirConsultaPainel);
   $('#mapMedir')?.addEventListener('click', async () => {
     await carregarMotor();
     medirLigar(!medir);
@@ -725,11 +711,6 @@ export function initProjeto(options) {
   bus.on('estilos:changed', pintarLegenda);
   window.NG.camadasPintar = pintarLegenda;
   pintarLegenda();
-  $('#navEstilos')?.addEventListener('click', async () => {
-    await carregarMotor();
-    if (!$('#sp').hidden) fecharSP();
-    else bus.emit('labels:open');
-  });
   ligarAlcaPainel();
   ligarPacoteRuas();
   // Rótulos e blocos do mapa usam a configuração do Projeto: o motor carrega logo após a abertura.
@@ -768,5 +749,5 @@ export function initProjeto(options) {
   });
   bus.on('data:changed', () => { iniciarRegionais().catch(console.error); });
 
-  return { abrir: abrirProjeto };
+  return { abrir: abrirProjeto, consulta: abrirConsultaPainel };
 }
