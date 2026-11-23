@@ -20,7 +20,8 @@
 /* Com o projeto aberto, só o desenho dele aparece sobre o mapa. */
 .map-stage.is-projeto-ativo .map-data-canvas { visibility: hidden !important; }
 .map-stage.is-projeto-ativo .map-legend,
-.map-stage.is-projeto-ativo .map-float-toolbar { display: none; }
+.map-stage.is-projeto-ativo .map-float-toolbar,
+.map-stage.is-projeto-ativo .map-more-menu { display: none; }
 
 .prj-painel {
   --prj-texto: var(--text, #e6eaee);
@@ -275,6 +276,45 @@
 #spt { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 #spc { overflow: auto; padding: 12px 16px; flex: 1; }
 #spc button { padding: 3px 9px; }
+
+/* KML dentro da coluna lateral do mapa */
+.kml-panel {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.kml-panel[hidden] { display: none; }
+.kml-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.kml-panel-head b { font-size: 13px; font-weight: 650; letter-spacing: -.01em; }
+.kml-panel-head button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-2);
+  font-size: 10.5px;
+}
+.kml-panel-head button:hover { background: var(--surface-hover); color: var(--text); }
+.kml-panel .kml-panel-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+.kml-panel .settings-grid { grid-template-columns: minmax(0, 1fr); width: 100%; gap: 10px; }
+.kml-panel .settings-card { padding: 14px; min-width: 0; }
+.kml-panel .settings-head > div:last-child { min-width: 0; }
+.kml-panel .setting-row { flex-wrap: wrap; gap: 8px; min-width: 0; }
+.kml-panel .setting-actions { flex-wrap: wrap; }
+.kml-panel .kml-file { min-width: 0; flex-wrap: wrap; }
+.kml-panel .kml-file-actions { width: 100%; justify-content: flex-start; padding-left: 34px; }
+.kml-panel .kml-file-copy { min-width: 0; }
+.kml-panel .section-heading { display: none; }
 #dxo .fr { margin: 2px 0; }
 #pacc { display: grid; gap: 0; }
 .pac-res { margin-top: 8px; }

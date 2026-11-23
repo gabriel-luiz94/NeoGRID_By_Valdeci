@@ -610,7 +610,9 @@ export function initProjeto(options) {
     colunaProjeto: (ligada) => {
       const layout = document.querySelector('.map-layout');
       layout?.classList.toggle('is-prj', ligada);
-      document.body.classList.toggle('is-projeto', ligada);
+      // Só o Projeto (e seus painéis) ativa o modo de teclado do projeto; o KML não.
+      const projetoAberto = Boolean($('#prj') && (!$('#prj').hidden || !$('#sp').hidden));
+      document.body.classList.toggle('is-projeto', Boolean(ligada) && projetoAberto);
       // O item ativo do menu é sincronizado pela casca (main.js), que também mantém o menu aberto.
     },
   };

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark" data-accent="orange">
+<html lang="pt-BR" data-theme="dark" data-accent="gray">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -94,7 +94,6 @@
   <!-- ── Custom title bar ────────────────────────────────────────── -->
   <div class="titlebar" id="titlebar">
     <div class="titlebar-left">
-      <span class="titlebar-logo"><svg><use href="#i-bolt"/></svg></span>
       <span class="titlebar-name">NeoGrid</span>
       <span class="titlebar-sep"></span>
       <span class="titlebar-context">Neoenergia PE</span>
@@ -127,7 +126,6 @@
   <div class="app-shell" id="appShell">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
-        <div class="brand-mark"><svg><use href="#i-bolt"/></svg></div>
         <div class="brand-copy">
           <strong>NeoGrid</strong>
           <span>Console de redes</span>
@@ -137,15 +135,6 @@
         </button>
       </div>
 
-      <div class="workspace-card">
-        <div class="workspace-avatar">PE</div>
-        <div class="workspace-copy">
-          <span>Workspace</span>
-          <strong>Neoenergia PE</strong>
-        </div>
-        <span class="badge badge-soft">Local</span>
-      </div>
-
       <nav class="sidebar-nav" aria-label="Navegação principal">
         <span class="nav-label">Operação</span>
         <button class="nav-item is-active" data-view="map" title="Mapa">
@@ -153,11 +142,15 @@
           <span class="nav-text">Mapa operacional</span>
           <span class="nav-kbd">1</span>
         </button>
-        <button class="nav-item" data-view="exports" title="Exportações">
-          <span class="nav-icon"><svg class="icon"><use href="#i-export"/></svg></span>
-          <span class="nav-text">Exportações</span>
-          <span class="nav-kbd">2</span>
+        <button class="nav-item" id="navKml" data-nav="kml" title="KML e KMZ no mapa (gasodutos, pontos e áreas)">
+          <span class="nav-icon"><svg class="icon"><use href="#i-kml"/></svg></span>
+          <span class="nav-text">KML/KMZ</span>
         </button>
+        <button class="nav-item" id="navEstilos" data-nav="estilos" title="Cores, símbolos, blocos e rótulos do mapa, do projeto e do DXF" type="button">
+          <span class="nav-icon"><svg class="icon"><use href="#i-tag"/></svg></span>
+          <span class="nav-text">Estilos</span>
+        </button>
+        <span class="nav-label nav-label-gap">Projeto e entrega</span>
         <button class="nav-item" id="navProjeto" data-nav="projeto" title="Projeto: edição, arruamento e pacote de entrega" type="button">
           <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17zM14 8l3 3"/></svg></span>
           <span class="nav-text">Projeto</span>
@@ -166,13 +159,10 @@
           <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
           <span class="nav-text">Consultar</span>
         </button>
-        <button class="nav-item" data-view="kml" title="KML e KMZ no mapa (gasodutos, pontos e áreas)">
-          <span class="nav-icon"><svg class="icon"><use href="#i-kml"/></svg></span>
-          <span class="nav-text">KML/KMZ</span>
-        </button>
-        <button class="nav-item" id="navEstilos" data-nav="estilos" title="Cores, símbolos, blocos e rótulos do mapa, do projeto e do DXF" type="button">
-          <span class="nav-icon"><svg class="icon"><use href="#i-tag"/></svg></span>
-          <span class="nav-text">Estilos</span>
+        <button class="nav-item" data-view="exports" title="Exportações">
+          <span class="nav-icon"><svg class="icon"><use href="#i-export"/></svg></span>
+          <span class="nav-text">Exportações</span>
+          <span class="nav-kbd">2</span>
         </button>
         <span class="nav-label nav-label-gap">Sistema</span>
         <button class="nav-item" data-view="settings" title="Configurações">
@@ -311,6 +301,113 @@
                 <div class="ph"><b>Consultar dados</b><button id="consx" type="button">Fechar</button></div>
                 <div id="cons-c"></div>
               </aside>
+              <aside class="kml-panel" id="kmlPanel" hidden>
+                <div class="kml-panel-head"><b>KML e KMZ</b><button id="kmlPanelClose" type="button">Voltar</button></div>
+                <div class="kml-panel-body">
+  <div class="settings-grid">
+                <article class="card settings-card">
+                  <div class="settings-head">
+                    <div class="settings-icon"><svg class="icon"><use href="#i-upload"/></svg></div>
+                    <div><h3>Importar</h3><p>KML ou KMZ (zip) do Google Earth</p></div>
+                  </div>
+                  <input type="file" id="kmlFileInput" accept=".kml,.kmz" multiple hidden>
+                  <div class="setting-row">
+                    <div><strong>Adicionar arquivos</strong><small>KMZ é descompactado sozinho; arquivos grandes são lidos em segundos.</small></div>
+                    <div class="setting-actions">
+                      <button class="btn btn-primary btn-sm" type="button" id="kmlPick">
+                        <svg class="icon"><use href="#i-upload"/></svg> Escolher KML/KMZ…
+                      </button>
+                    </div>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>No mapa</strong><small id="kmlImportStatus">Nenhum arquivo carregado.</small></div>
+                    <div class="setting-actions">
+                      <button class="btn btn-soft btn-sm" type="button" id="kmlFit">Ir para o KML</button>
+                      <button class="btn btn-ghost btn-sm" type="button" id="kmlClearAll">Remover todos</button>
+                    </div>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Ir para o arquivo ao importar</strong><small>Centraliza o mapa no KML recém-carregado.</small></div>
+                    <label class="inline-switch"><input type="checkbox" id="kmlFitOnImport" class="switch" checked><span>Ativado</span></label>
+                  </div>
+                </article>
+  
+                <article class="card settings-card" style="grid-column: 1 / -1">
+                  <div class="settings-head">
+                    <div class="settings-icon"><svg class="icon"><use href="#i-layers"/></svg></div>
+                    <div><h3>Arquivos carregados</h3><p>Marque para mostrar no mapa e use “Aparência” para mudar cores, espessura e rótulos de cada arquivo.</p></div>
+                  </div>
+                  <div class="kml-files" id="kmlFiles"></div>
+                  <div class="kml-unsupported" id="kmlUnsupported"></div>
+                </article>
+  
+                <article class="card settings-card">
+                  <div class="settings-head">
+                    <div class="settings-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
+                    <div><h3>Rede Copergás (embutida)</h3><p>Gasodutos que acompanham o programa</p></div>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Situação</strong><small id="kmlEmbedStatus">Carregando o KMZ embutido…</small></div>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Trocar o arquivo</strong><small>Use o KMZ mais recente da Copergás. A troca fica salva neste computador e pode ser desfeita.</small></div>
+                    <div class="setting-actions">
+                      <input type="file" id="kmlEmbedInput" accept=".kmz,.kml" hidden>
+                      <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedReplace">Substituir KMZ…</button>
+                      <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedRestore">Restaurar original</button>
+                    </div>
+                  </div>
+                </article>
+  
+                <article class="card settings-card">
+                  <div class="settings-head">
+                    <div class="settings-icon"><svg class="icon"><use href="#i-eye"/></svg></div>
+                    <div><h3>Exibição</h3><p>O que aparece no mapa e no DXF</p></div>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Pontos</strong><small>Marcadores dos placemarks pontuais.</small></div>
+                    <label class="inline-switch"><input type="checkbox" id="kmlShowPoints" class="switch" checked><span>Mostrar</span></label>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Linhas</strong><small>Gasodutos, trechos e caminhos.</small></div>
+                    <label class="inline-switch"><input type="checkbox" id="kmlShowLines" class="switch" checked><span>Mostrar</span></label>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Áreas</strong><small>Polígonos e limites.</small></div>
+                    <label class="inline-switch"><input type="checkbox" id="kmlShowPolygons" class="switch" checked><span>Mostrar</span></label>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Rótulos</strong><small>Nomes dos placemarks junto aos elementos (até 200).</small></div>
+                    <label class="inline-switch"><input type="checkbox" id="kmlShowLabels" class="switch" checked><span>Mostrar</span></label>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Cores do arquivo</strong><small>Usa as cores definidas no KML. Desligado: valem as cores do Estilo.</small></div>
+                    <label class="inline-switch"><input type="checkbox" id="kmlUseKmlColors" class="switch" checked><span>Usar</span></label>
+                  </div>
+                </article>
+  
+                <article class="card settings-card">
+                  <div class="settings-head">
+                    <div class="settings-icon"><svg class="icon"><use href="#i-ruler"/></svg></div>
+                    <div><h3>Linhas e pontos</h3><p>Espessura, cor e opacidade</p></div>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Espessura das linhas</strong><small>Define a largura de todos os trechos, a menos que você use a largura do arquivo.</small></div>
+                    <button class="btn btn-soft btn-sm" type="button" id="kmlEstilos">Abrir Estilos → KML</button>
+                  </div>
+                  <div class="setting-row">
+                    <div><strong>Cores padrão</strong><small>Usadas quando as cores do arquivo estão desligadas.</small></div>
+                    <div class="setting-actions">
+                      <input type="color" id="kmlPointColor" value="#f472b6" title="Cor dos pontos" aria-label="Cor dos pontos">
+                      <input type="color" id="kmlLineColor" value="#38bdf8" title="Cor das linhas" aria-label="Cor das linhas">
+                      <input type="color" id="kmlPolygonColor" value="#22c55e" title="Cor das áreas" aria-label="Cor das áreas">
+                    </div>
+                  </div>
+                  <p class="field-hint">Em <b>Estilos → KML linhas e áreas → Aparência</b> também há “Usar a largura/opacidade/cor do próprio KML”.</p>
+                </article>
+              </div>
+                </div>
+              </aside>
             </div>
             <aside class="map-panel">
               <div class="panel-tabs" role="tablist">
@@ -327,22 +424,23 @@
                     </div>
                     <div class="layer-list" id="layerList"></div>
                   </div>
-                  <div class="panel-section" id="regionaisBox" hidden>
-                    <div class="panel-section-head"><span>Regionais</span><button class="ghost-btn" id="regionaisTodas" type="button">Marcar/limpar</button></div>
+                  <details class="panel-details" id="regionaisBox" hidden>
+                    <summary>Regionais</summary>
+                    <div class="panel-section-head"><span>Filtrar por regional</span><button class="ghost-btn" id="regionaisTodas" type="button">Marcar/limpar</button></div>
                     <div class="regionais-lista" id="regionaisLista"></div>
                     <button class="btn btn-ghost btn-sm" id="regionaisAplicar" type="button">Aplicar ao mapa</button>
-                  </div>
-                  <div class="panel-section" id="limitesBox">
-                    <div class="panel-section-head"><span>Limites de Pernambuco</span></div>
+                  </details>
+                  <details class="panel-details" id="limitesBox">
+                    <summary>Limites de Pernambuco</summary>
                     <label class="switch-row"><span><strong>Limite do estado</strong></span><input type="checkbox" id="lim-est" class="switch"></label>
                     <label class="switch-row"><span><strong>Municípios</strong></span><input type="checkbox" id="lim-mun" class="switch"></label>
                     <input class="input" id="limMunBusca" type="search" placeholder="Ir para um município…">
                     <div class="lim-lista" id="limMunLista"></div>
-                  </div>
-                  <div class="panel-section">
-                    <div class="panel-section-head"><span>Resumo do conjunto</span></div>
+                  </details>
+                  <details class="panel-details">
+                    <summary>Resumo do conjunto</summary>
                     <div class="map-summary" id="mapStats"></div>
-                  </div>
+                  </details>
                 </div>
 
                 <div class="panel-pane" data-panel="basemap" hidden>
@@ -421,31 +519,36 @@
                 </div>
                 <div class="toolbar-sep"></div>
                 <div class="toolbar-group">
-                  <button class="map-tool tooltip" id="mapStreets" data-tooltip="Mostrar as ruas guardadas" aria-label="Mostrar as ruas guardadas">
-                    <svg class="icon"><use href="#i-road"/></svg>
-                  </button>
-                  <button class="map-tool tooltip" id="mapKml" data-tooltip="KML/KMZ: pontos, linhas e áreas" aria-label="KML">
-                    <svg class="icon"><use href="#i-kml"/></svg>
-                  </button>
-                  <button class="map-tool tooltip" id="mapNote" data-tooltip="Anotações no mapa" aria-label="Anotações no mapa">
-                    <svg class="icon"><use href="#i-file-text"/></svg>
-                  </button>
-                  <button class="map-tool tooltip" id="mapMarkup" data-tooltip="Marcar o mapa (texto, seta, linha, desenho)" aria-label="Marcar o mapa">
-                    <svg class="icon"><use href="#i-pen"/></svg>
-                  </button>
-                  <button class="map-tool tooltip" id="mapPrint" data-tooltip="Imprimir / PDF" aria-label="Imprimir ou salvar PDF">
-                    <svg class="icon"><use href="#i-printer"/></svg>
-                  </button>
-                  <button class="map-tool tooltip" id="mapMedir" data-tooltip="Medir distâncias" aria-label="Medir distâncias">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg>
-                  </button>
-                  <button class="map-tool tooltip" id="mapProjeto" data-tooltip="Projeto e pacote de entrega" aria-label="Projeto">
-                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17zM14 8l3 3"/></svg>
-                  </button>
                   <button class="map-tool tooltip" id="mapFullscreen" data-tooltip="Tela cheia" aria-label="Tela cheia">
                     <svg class="icon"><use href="#i-maximize"/></svg>
                   </button>
+                  <button class="map-tool tooltip" id="mapMore" data-tooltip="Mais ferramentas" aria-label="Mais ferramentas" aria-expanded="false" aria-controls="mapMoreMenu">
+                    <svg class="icon"><use href="#i-more"/></svg>
+                  </button>
                 </div>
+              </div>
+
+              <div class="map-more-menu" id="mapMoreMenu" hidden>
+                <span class="map-more-title">Ferramentas do mapa</span>
+                <button class="map-more-item" id="mapStreets" type="button">
+                  <svg class="icon"><use href="#i-road"/></svg><span>Ruas guardadas</span>
+                </button>
+                <button class="map-more-item" id="mapKml" type="button">
+                  <svg class="icon"><use href="#i-kml"/></svg><span>KML/KMZ</span>
+                </button>
+                <button class="map-more-item" id="mapNote" type="button">
+                  <svg class="icon"><use href="#i-file-text"/></svg><span>Anotações no mapa</span>
+                </button>
+                <button class="map-more-item" id="mapMedir" type="button">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/></svg><span>Medir distâncias</span>
+                </button>
+                <button class="map-more-item" id="mapProjeto" type="button">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17zM14 8l3 3"/></svg><span>Projeto e entrega</span>
+                </button>
+                <span class="map-more-sep"></span>
+                <button class="map-more-item" id="mapPrint" type="button">
+                  <svg class="icon"><use href="#i-printer"/></svg><span>Imprimir / PDF</span>
+                </button>
               </div>
 
               <div class="map-float-right">
@@ -626,22 +729,13 @@
               <article class="card settings-card">
                 <div class="settings-head">
                   <div class="settings-icon"><svg class="icon"><use href="#i-palette"/></svg></div>
-                  <div><h3>Aparência</h3><p>Tema e cor de destaque da interface.</p></div>
+                  <div><h3>Aparência</h3><p>Tema da interface.</p></div>
                 </div>
                 <div class="setting-row">
                   <div><strong>Tema</strong><small>Escolha entre o modo escuro e claro.</small></div>
                   <div class="segmented" id="themeSegmented">
                     <button data-theme-value="dark"><svg class="icon"><use href="#i-moon"/></svg> Escuro</button>
                     <button data-theme-value="light"><svg class="icon"><use href="#i-sun"/></svg> Claro</button>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Cor de destaque</strong><small>Aplicada a botões, seleções e indicadores.</small></div>
-                  <div class="swatches" id="accentSwatches">
-                    <button data-accent-value="orange" style="--sw:#f5a524" aria-label="Laranja"></button>
-                    <button data-accent-value="cyan" style="--sw:#22d3ee" aria-label="Ciano"></button>
-                    <button data-accent-value="green" style="--sw:#34d399" aria-label="Verde"></button>
-                    <button data-accent-value="violet" style="--sw:#a78bfa" aria-label="Violeta"></button>
                   </div>
                 </div>
                 <div class="setting-row">
@@ -803,120 +897,7 @@
         </section>
 
         <!-- ══ KML / KMZ ═════════════════════════════════════════════ -->
-        <section class="view view-kml" data-view="kml" aria-label="KML e KMZ">
-          <div class="view-scroll settings-wrap">
-            <div class="section-heading">
-              <div>
-                <span class="eyebrow">Mapa</span>
-                <h2>KML e KMZ</h2>
-                <p>Importe arquivos, controle o que aparece no mapa e ajuste as linhas. O KMZ da Copergás já vem embutido.</p>
-              </div>
-            </div>
-
-            <div class="settings-grid">
-              <article class="card settings-card">
-                <div class="settings-head">
-                  <div class="settings-icon"><svg class="icon"><use href="#i-upload"/></svg></div>
-                  <div><h3>Importar</h3><p>KML ou KMZ (zip) do Google Earth</p></div>
-                </div>
-                <input type="file" id="kmlFileInput" accept=".kml,.kmz" multiple hidden>
-                <div class="setting-row">
-                  <div><strong>Adicionar arquivos</strong><small>KMZ é descompactado sozinho; arquivos grandes são lidos em segundos.</small></div>
-                  <div class="setting-actions">
-                    <button class="btn btn-primary btn-sm" type="button" id="kmlPick">
-                      <svg class="icon"><use href="#i-upload"/></svg> Escolher KML/KMZ…
-                    </button>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>No mapa</strong><small id="kmlImportStatus">Nenhum arquivo carregado.</small></div>
-                  <div class="setting-actions">
-                    <button class="btn btn-soft btn-sm" type="button" id="kmlFit">Ir para o KML</button>
-                    <button class="btn btn-ghost btn-sm" type="button" id="kmlClearAll">Remover todos</button>
-                  </div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Ir para o arquivo ao importar</strong><small>Centraliza o mapa no KML recém-carregado.</small></div>
-                  <label class="inline-switch"><input type="checkbox" id="kmlFitOnImport" class="switch" checked><span>Ativado</span></label>
-                </div>
-              </article>
-
-              <article class="card settings-card">
-                <div class="settings-head">
-                  <div class="settings-icon"><svg class="icon"><use href="#i-kml"/></svg></div>
-                  <div><h3>Rede Copergás (embutida)</h3><p>Gasodutos que acompanham o programa</p></div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Situação</strong><small id="kmlEmbedStatus">Carregando o KMZ embutido…</small></div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Trocar o arquivo</strong><small>Use o KMZ mais recente da Copergás. A troca fica salva neste computador e pode ser desfeita.</small></div>
-                  <div class="setting-actions">
-                    <input type="file" id="kmlEmbedInput" accept=".kmz,.kml" hidden>
-                    <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedReplace">Substituir KMZ…</button>
-                    <button class="btn btn-ghost btn-sm" type="button" id="kmlEmbedRestore">Restaurar original</button>
-                  </div>
-                </div>
-              </article>
-
-              <article class="card settings-card">
-                <div class="settings-head">
-                  <div class="settings-icon"><svg class="icon"><use href="#i-eye"/></svg></div>
-                  <div><h3>Exibição</h3><p>O que aparece no mapa e no DXF</p></div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Pontos</strong><small>Marcadores dos placemarks pontuais.</small></div>
-                  <label class="inline-switch"><input type="checkbox" id="kmlShowPoints" class="switch" checked><span>Mostrar</span></label>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Linhas</strong><small>Gasodutos, trechos e caminhos.</small></div>
-                  <label class="inline-switch"><input type="checkbox" id="kmlShowLines" class="switch" checked><span>Mostrar</span></label>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Áreas</strong><small>Polígonos e limites.</small></div>
-                  <label class="inline-switch"><input type="checkbox" id="kmlShowPolygons" class="switch" checked><span>Mostrar</span></label>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Rótulos</strong><small>Nomes dos placemarks junto aos elementos (até 200).</small></div>
-                  <label class="inline-switch"><input type="checkbox" id="kmlShowLabels" class="switch" checked><span>Mostrar</span></label>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Cores do arquivo</strong><small>Usa as cores definidas no KML. Desligado: valem as cores do Estilo.</small></div>
-                  <label class="inline-switch"><input type="checkbox" id="kmlUseKmlColors" class="switch" checked><span>Usar</span></label>
-                </div>
-              </article>
-
-              <article class="card settings-card">
-                <div class="settings-head">
-                  <div class="settings-icon"><svg class="icon"><use href="#i-ruler"/></svg></div>
-                  <div><h3>Linhas e pontos</h3><p>Espessura, cor e opacidade</p></div>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Espessura das linhas</strong><small>Define a largura de todos os trechos, a menos que você use a largura do arquivo.</small></div>
-                  <button class="btn btn-soft btn-sm" type="button" id="kmlEstilos">Abrir Estilos → KML</button>
-                </div>
-                <div class="setting-row">
-                  <div><strong>Cores padrão</strong><small>Usadas quando as cores do arquivo estão desligadas.</small></div>
-                  <div class="setting-actions">
-                    <input type="color" id="kmlPointColor" value="#f472b6" title="Cor dos pontos" aria-label="Cor dos pontos">
-                    <input type="color" id="kmlLineColor" value="#38bdf8" title="Cor das linhas" aria-label="Cor das linhas">
-                    <input type="color" id="kmlPolygonColor" value="#22c55e" title="Cor das áreas" aria-label="Cor das áreas">
-                  </div>
-                </div>
-                <p class="field-hint">Em <b>Estilos → KML linhas e áreas → Aparência</b> também há “Usar a largura/opacidade/cor do próprio KML”.</p>
-              </article>
-
-              <article class="card settings-card" style="grid-column: 1 / -1">
-                <div class="settings-head">
-                  <div class="settings-icon"><svg class="icon"><use href="#i-layers"/></svg></div>
-                  <div><h3>Arquivos carregados</h3><p>Marque para mostrar no mapa, “Ir para” enquadra o arquivo</p></div>
-                </div>
-                <div class="kml-files" id="kmlFiles"></div>
-                <div class="kml-unsupported" id="kmlUnsupported"></div>
-              </article>
-            </div>
-          </div>
-        </section>
+        
       </main>
 
       <footer class="statusbar">
@@ -963,6 +944,15 @@
         <svg class="icon"><use href="#i-info"/></svg>
         <p id="printInfo">A área útil da folha está destacada no mapa. Mova e aproxime para enquadrar.</p>
       </div>
+      <div class="print-markup-actions">
+        <button class="btn btn-ghost btn-sm" type="button" id="printMarkup">
+          <svg class="icon"><use href="#i-pen"/></svg> Marcar no mapa
+        </button>
+        <button class="btn btn-ghost btn-sm" type="button" id="printMarkupClear">
+          <svg class="icon"><use href="#i-trash"/></svg> Limpar marcações
+        </button>
+      </div>
+      <p class="field-hint">As marcações aparecem na prancha. Use “Concluir” na barra para ajustar o mapa sem apagá-las.</p>
       <button class="btn btn-primary btn-block" id="printGo">
         <svg class="icon"><use href="#i-printer"/></svg> Abrir impressão
       </button>
@@ -1187,8 +1177,8 @@
       <header class="modal-head">
         <div class="modal-head-icon"><svg class="icon"><use href="#i-settings"/></svg></div>
         <div class="modal-head-copy">
-          <h2 id="kmlEditTitle">Editar KML</h2>
-          <p id="kmlEditSubtitle">Camadas, linhas, rótulos e pontos</p>
+          <h2 id="kmlEditTitle">Aparência do KML</h2>
+          <p id="kmlEditSubtitle">Cores, linhas, rótulos e pontos deste arquivo</p>
         </div>
         <button class="icon-btn" data-close aria-label="Fechar"><svg class="icon"><use href="#i-x"/></svg></button>
       </header>
@@ -1258,7 +1248,6 @@
   <div class="auth-gate" id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <div class="auth-card">
       <div class="auth-brand">
-        <div class="brand-mark"><svg><use href="#i-bolt"/></svg></div>
         <div class="auth-brand-copy">
           <strong>NeoGrid</strong>
           <span>Console de redes · Neoenergia PE</span>
@@ -1307,9 +1296,10 @@
     </div>
   </div>
 
-  <!-- ── Marcações no mapa (modo temporário) ───────────────────────── -->
+  <!-- ── Marcações no mapa (fluxo de impressão/PDF) ───────────────── -->
   <div class="markup-bar" id="markupBar" hidden role="toolbar" aria-label="Marcações no mapa">
     <div class="markup-tools">
+      <button class="markup-tool" type="button" data-markup-tool="pan" title="Mover o mapa"><svg class="icon"><use href="#i-map"/></svg></button>
       <button class="markup-tool is-active" type="button" data-markup-tool="text" title="Texto"><svg class="icon"><use href="#i-file-text"/></svg></button>
       <button class="markup-tool" type="button" data-markup-tool="arrow" title="Seta"><svg class="icon"><use href="#i-arrow"/></svg></button>
       <button class="markup-tool" type="button" data-markup-tool="line" title="Linha"><svg class="icon"><use href="#i-line"/></svg></button>
@@ -1322,7 +1312,7 @@
     <label class="markup-op"><input type="checkbox" id="markupBg" checked> Fundo</label>
     <span class="markup-sep"></span>
     <button class="markup-btn" type="button" id="markupClear" title="Apagar todas as marcações"><svg class="icon"><use href="#i-trash"/></svg> Limpar</button>
-    <button class="markup-btn is-primary" type="button" id="markupExit" title="Sair e apagar as marcações">Sair</button>
+    <button class="markup-btn is-primary" type="button" id="markupExit" title="Concluir e manter as marcações no mapa">Concluir</button>
   </div>
 
   <dialog class="modal" id="markupTextDialog">
@@ -1342,7 +1332,7 @@
         </label>
       </div>
       <footer class="modal-foot">
-        <span class="modal-foot-info">Some ao sair do modo de marcação.</span>
+        <span class="modal-foot-info">A marcação permanece no mapa até ser apagada.</span>
         <div class="modal-actions">
           <button class="btn btn-ghost" data-close>Cancelar</button>
           <button class="btn btn-primary" type="button" id="markupTextOk">Adicionar</button>
@@ -1381,7 +1371,7 @@
     <div class="print-sheet" id="printSheetRoot">
       <div class="print-map-slot" id="printMapSlot"></div>
       <header class="print-header">
-        <div class="print-brand"><span class="print-logo"><svg><use href="#i-bolt"/></svg></span><div><strong>NeoGrid</strong><span>Neoenergia PE</span></div></div>
+        <div class="print-brand"><div><strong>NeoGrid</strong><span>Neoenergia PE</span></div></div>
         <div class="print-title"><h2 id="printTitle">Mapa de redes e ativos</h2><p id="printContext">—</p></div>
         <div class="print-sheet-label"><span id="printSheetLabel">A3</span><small>prancha técnica</small></div>
       </header>
@@ -1395,7 +1385,6 @@
 
   <!-- ── Loading splash ──────────────────────────────────────────── -->
   <div class="splash" id="splash">
-    <div class="splash-logo"><svg><use href="#i-bolt"/></svg></div>
     <div class="splash-name">NeoGrid</div>
     <div class="splash-bar"><span></span></div>
     <span class="splash-caption">Preparando o ambiente local…</span>

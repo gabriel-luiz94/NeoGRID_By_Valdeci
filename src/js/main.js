@@ -60,8 +60,9 @@ function syncNavActive() {
   const sp = $('#sp');
   const cons = $('#cons');
   const prj = $('#prj');
+  const kml = $('#kmlPanel');
   const painel = currentView === 'map'
-    ? (sp && !sp.hidden ? 'estilos' : cons && !cons.hidden ? 'consulta' : prj && !prj.hidden ? 'projeto' : null)
+    ? (sp && !sp.hidden ? 'estilos' : kml && !kml.hidden ? 'kml' : cons && !cons.hidden ? 'consulta' : prj && !prj.hidden ? 'projeto' : null)
     : null;
   $$('.sidebar-nav .nav-item').forEach((item) => {
     const key = item.dataset.view || item.dataset.nav;
@@ -81,6 +82,14 @@ function closeMapPanel(name) {
     }
     return;
   }
+  if (name === 'kml') {
+    if (kmlApi?.close) kmlApi.close();
+    else {
+      const kml = $('#kmlPanel');
+      if (kml) kml.hidden = true;
+    }
+    return;
+  }
   const alvo = name === 'consulta' ? $('#cons') : name === 'projeto' ? $('#prj') : null;
   if (alvo) alvo.hidden = true;
 }
@@ -88,8 +97,15 @@ function closeMapPanel(name) {
 /** Fecha os painéis abertos sobre o mapa e volta ao mapa operacional. */
 function closeMapPanels() {
   closeMapPanel('estilos');
+  closeMapPanel('kml');
   closeMapPanel('consulta');
   closeMapPanel('projeto');
+  const algum = ['#prj', '#sp', '#cons', '#kmlPanel'].some((sel) => {
+    const el = $(sel);
+    return el && !el.hidden;
+  });
+  if (!algum) document.querySelector('.map-layout')?.classList.remove('is-prj');
+  mapView?.invalidate?.();
 }
 
 function setPage(view) {
@@ -204,9 +220,12 @@ function bindShell() {
       const ativo = button.classList.contains('is-active');
       const navPanel = button.dataset.nav;
 
-      // Itens que abrem painéis sobre o mapa (Projeto, Consultar, Estilos).
+      // Itens que abrem painéis sobre o mapa (Projeto, Consultar, KML, Estilos).
       if (navPanel) {
-        const alvo = navPanel === 'projeto' ? $('#prj') : navPanel === 'consulta' ? $('#cons') : $('#sp');
+        const alvo = navPanel === 'projeto' ? $('#prj')
+          : navPanel === 'consulta' ? $('#cons')
+            : navPanel === 'kml' ? $('#kmlPanel')
+              : $('#sp');
         const aberto = currentView === 'map' && Boolean(alvo && !alvo.hidden);
         if (recolhido) {
           setCollapsed(false);
@@ -218,6 +237,7 @@ function bindShell() {
         }
         if (navPanel === 'projeto') projectModule?.abrir();
         else if (navPanel === 'consulta') projectModule?.consulta();
+        else if (navPanel === 'kml') kmlApi?.open();
         else bus.emit('labels:open');
         return;
       }
@@ -437,7 +457,8 @@ async function init() {
     openRow: (type, index) => openRowDialog(type, index),
   }).init();
   initMapNotes({ mapView, navigate: (view) => setPage(view) });
-  initMapMarkup({ mapView, navigate: (view) => setPage(view) });
+  const markupApi = initMapMarkup({ mapView, navigate: (view) => setPage(view) });
+  bus.on('ui:view', (view) => { if (view !== 'map') markupApi?.concluir(); });
 
   initRowDialog({
     onLocate: (type, index) => {
@@ -452,7 +473,7 @@ async function init() {
     fitData: (options) => mapView.fitData(options),
   });
   kmlApi = initKml({ mapView, navigate: (view) => setPage(view) });
-  printApi = initPrint({ mapView, navigate: (view) => setPage(view) });
+  printApi = initPrint({ mapView, navigate: (view) => setPage(view), markup: markupApi });
   projectModule = initProjeto({ mapView, navigate: (view) => setPage(view) });
   initExports();
   wireCsvExport();

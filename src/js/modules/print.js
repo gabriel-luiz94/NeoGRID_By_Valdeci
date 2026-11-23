@@ -89,6 +89,7 @@ function removeFrame() {
 function closePanel() {
   state.panelOpen = false;
   els.panel.hidden = true;
+  deps.markup?.concluir();
   removeFrame();
 }
 
@@ -191,6 +192,7 @@ function avisoDeRotulos(stats) {
 
 async function print() {
   if (state.printing) return;
+  deps.markup?.concluir();
   state.printing = true;
   const map = deps.mapView.map;
   const renderer = deps.mapView.renderer;

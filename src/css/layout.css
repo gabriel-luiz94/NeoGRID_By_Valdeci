@@ -7,9 +7,7 @@
   height: var(--titlebar-h);
   padding: 0 152px 0 14px;
   border-bottom: 1px solid var(--border);
-  background:
-    radial-gradient(1200px 90px at 18% -100%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%),
-    var(--bg-subtle);
+  background: var(--bg-subtle);
   color: var(--muted);
   font-size: 11px;
   -webkit-app-region: drag;
@@ -94,7 +92,7 @@
 .titlebar-chip .icon {
   width: 11px;
   height: 11px;
-  color: var(--success);
+  color: var(--muted);
 }
 
 html[data-platform='darwin'] .titlebar {
@@ -134,9 +132,7 @@ html[data-platform='darwin'] .titlebar-right {
   min-height: 0;
   padding: 0 12px 12px;
   border-right: 1px solid var(--border);
-  background:
-    radial-gradient(320px 240px at 30% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 75%),
-    linear-gradient(180deg, var(--bg-subtle), var(--bg) 70%);
+  background: var(--bg-subtle);
   overflow: hidden;
 }
 
@@ -236,16 +232,16 @@ html[data-platform='darwin'] .titlebar-right {
   height: 28px;
   flex: none;
   border-radius: 7px;
-  background: linear-gradient(150deg, #163041, #0d1a24);
-  color: #8edfd6;
+  background: linear-gradient(150deg, #2a2a2f, #17171a);
+  color: #d9d9de;
   font-size: 9.5px;
   font-weight: 750;
   letter-spacing: .03em;
 }
 
 [data-theme='light'] .workspace-avatar {
-  background: linear-gradient(150deg, #d6eef0, #b7e1dc);
-  color: #0f5e58;
+  background: linear-gradient(150deg, #ececef, #d9d9dd);
+  color: #26262a;
 }
 
 .workspace-copy {
@@ -323,8 +319,7 @@ html[data-platform='darwin'] .titlebar-right {
 }
 
 .nav-item.is-active {
-  background:
-    linear-gradient(90deg, var(--accent-soft), color-mix(in srgb, var(--accent) 3%, transparent) 70%);
+  background: var(--surface-active);
   color: var(--text);
 }
 
@@ -332,12 +327,12 @@ html[data-platform='darwin'] .titlebar-right {
   content: '';
   position: absolute;
   left: -12px;
-  top: 8px;
-  bottom: 8px;
-  width: 2.5px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
   border-radius: 0 3px 3px 0;
-  background: var(--accent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent);
+  background: var(--text-2);
+  opacity: .55;
 }
 
 .nav-icon {
@@ -546,6 +541,10 @@ html[data-platform='darwin'] .titlebar-right {
   padding-left: 10px;
   padding-right: 10px;
   overflow: visible;
+}
+
+.app-shell.is-collapsed .sidebar-brand {
+  display: none;
 }
 
 .app-shell.is-collapsed .sidebar-expand {
@@ -1019,9 +1018,7 @@ html[data-platform='darwin'] .titlebar-right {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(620px 380px at 50% 42%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 72%),
-    var(--bg);
+  background: var(--bg);
   transition: opacity .45s var(--ease), visibility .45s;
 }
 
@@ -1049,10 +1046,10 @@ html[data-platform='darwin'] .titlebar-right {
 }
 
 .splash-name {
-  margin-top: 16px;
-  font-size: 17px;
-  font-weight: 720;
-  letter-spacing: -.03em;
+  margin-top: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -.04em;
 }
 
 .splash-bar {

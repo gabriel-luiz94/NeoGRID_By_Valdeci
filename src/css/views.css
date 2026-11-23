@@ -1379,9 +1379,9 @@
   height: 19px;
 }
 
-.export-icon-orange { --ec: var(--accent); }
-.export-icon-teal { --ec: var(--layer-bt); }
-.export-icon-violet { --ec: var(--layer-inst); }
+.export-icon-orange,
+.export-icon-teal,
+.export-icon-violet { --ec: var(--text-2); }
 
 .exports-lower {
   display: grid;
@@ -1763,7 +1763,7 @@ body.is-printing .print-root {
   display: block;
   width: 100%;
   height: 6px;
-  accent-color: #f5a524;
+  accent-color: var(--accent);
 }
 
 .print-status progress[hidden] {

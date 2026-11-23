@@ -20,6 +20,7 @@ const DEFAULT_OPTIONS = Object.freeze({
 const state = {
   files: [],
   options: { ...DEFAULT_OPTIONS },
+  fileStyles: {},
   fitOnImport: true,
   oculto: false,
 };
@@ -399,11 +400,15 @@ export function parseKml(text, fileName = 'arquivo.kml') {
 }
 
 // O KML vale só enquanto o programa está aberto: os arquivos nunca são gravados.
-// Ficam guardadas apenas as preferências de exibição.
+// Ficam guardadas as preferências de exibição e a aparência de cada arquivo.
 function save() {
+  for (const file of state.files) {
+    if (file.settings) state.fileStyles[fileKey(file)] = file.settings;
+  }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       options: state.options,
+      styles: state.fileStyles,
       fitOnImport: state.fitOnImport,
     }));
   } catch {
@@ -417,6 +422,7 @@ function load() {
     const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if (!raw) return;
     state.options = { ...DEFAULT_OPTIONS, ...(raw.options || {}) };
+    state.fileStyles = raw.styles && typeof raw.styles === 'object' ? raw.styles : {};
     state.fitOnImport = raw.fitOnImport !== false;
     // Versões anteriores guardavam os arquivos: apaga para não ocupar espaço nem reaparecer.
     if ('files' in raw || 'oculto' in raw) save();
@@ -484,8 +490,16 @@ function chaveEstilo(feature) {
   return `s-${style.width || 0}-${style.lineColor || ''}-${style.polyColor || ''}`;
 }
 
+/** Chave estável da aparência: o KMZ embutido mantém id; arquivos usam nome + arquivo. */
+function fileKey(file) {
+  return file.id === EMBUTIDO_ID ? EMBUTIDO_ID : `${file.name || ''}::${file.fileName || ''}`;
+}
+
 function cfgDoArquivo(file) {
-  if (!file.settings) file.settings = CFG_ARQUIVO();
+  if (!file.settings) {
+    const salvo = state.fileStyles?.[fileKey(file)];
+    file.settings = { ...CFG_ARQUIVO(), ...(salvo && typeof salvo === 'object' ? salvo : {}) };
+  }
   const cfg = file.settings;
   if (!Array.isArray(cfg.hiddenFolders)) cfg.hiddenFolders = [];
   if (!Array.isArray(cfg.hiddenStyles)) cfg.hiddenStyles = [];
@@ -665,7 +679,16 @@ function updateDock() {
   document.querySelector('#mapKml')?.classList.toggle('is-active', state.files.length > 0);
 }
 
-function hideKmlDock() {}
+function hideKmlDock() {
+  const painel = document.querySelector('#kmlPanel');
+  if (painel) painel.hidden = true;
+  const outro = ['#prj', '#sp', '#cons'].some((sel) => {
+    const el = document.querySelector(sel);
+    return el && !el.hidden;
+  });
+  if (!outro) document.querySelector('.map-layout')?.classList.remove('is-prj');
+  deps.mapView?.invalidate?.();
+}
 
 function fitBounds(bounds, { maxZoom = 18 } = {}) {
   if (!bounds) return;
@@ -959,6 +982,28 @@ function renderFiles() {
     return;
   }
   els.files.innerHTML = state.files.map((file) => {
+    const cfg = cfgDoArquivo(file);
+    const k = window.ngMapa?.kml() || {};
+    const amostras = {};
+    for (const feature of file.features || []) {
+      if (!amostras[feature.kind]) amostras[feature.kind] = feature;
+    }
+    const styleOf = (kind) => amostras[kind]?.style || {};
+    const hex = (value, fallback) => (/^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback);
+    const cor = (kind) => {
+      const style = styleOf(kind);
+      if (kind === 'line') return hex(cfg.lineColor || style.lineColor || k.linha || state.options.lineColor, '#38bdf8');
+      if (kind === 'point') return hex(cfg.pointColor || style.iconColor || style.labelColor || k.ponto || state.options.pointColor, '#f472b6');
+      return hex(cfg.polygonColor || style.polyColor || style.lineColor || k.linha || state.options.polygonColor, '#22c55e');
+    };
+    const pontos = file.counts?.points || 0;
+    const linhas = file.counts?.lines || 0;
+    const areas = file.counts?.polygons || 0;
+    const cores = [
+      linhas ? `<input type="color" class="kml-cor-input" data-kml-color="line" value="${cor('line')}" title="Cor das linhas deste arquivo" aria-label="Cor das linhas">` : '',
+      pontos ? `<input type="color" class="kml-cor-input" data-kml-color="point" value="${cor('point')}" title="Cor dos pontos deste arquivo" aria-label="Cor dos pontos">` : '',
+      areas ? `<input type="color" class="kml-cor-input" data-kml-color="polygon" value="${cor('polygon')}" title="Cor das áreas deste arquivo" aria-label="Cor das áreas">` : '',
+    ].filter(Boolean).join('');
     const ignored = Object.entries(file.unsupported || {});
     const ignoredText = ignored.length
       ? `<span class="kml-warning">${ignored.map(([name, count]) => `${count} ${esc(name)}`).join(' · ')} ignorado(s)</span>`
@@ -968,13 +1013,14 @@ function renderFiles() {
         <input type="checkbox" data-kml-visible ${file.visible === false ? '' : 'checked'}>
         <span class="kml-file-copy">
           <strong>${esc(file.name)}</strong>
-          <small>${esc(file.fileName)} · ${fmtInt(file.counts?.points || 0)} pontos · ${fmtInt(file.counts?.lines || 0)} linhas · ${fmtInt(file.counts?.polygons || 0)} áreas</small>
+          <small>${esc(file.fileName)} · ${fmtInt(pontos)} pontos · ${fmtInt(linhas)} linhas · ${fmtInt(areas)} áreas</small>
           ${ignoredText}
         </span>
       </label>
       <div class="kml-file-actions">
+        <span class="kml-file-colors" aria-label="Cores deste arquivo">${cores}</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-kml-edit title="Mudar a aparência só deste arquivo">${icon('palette')} Aparência</button>
         <button class="btn btn-ghost btn-sm" type="button" data-kml-fit>Ir para</button>
-        <button class="icon-btn" type="button" data-kml-edit title="Editar camadas, linhas e rótulos" aria-label="Editar KML">${icon('settings')}</button>
         <button class="icon-btn" type="button" data-kml-remove title="Remover KML" aria-label="Remover KML">${icon('trash')}</button>
       </div>
     </article>`;
@@ -1017,7 +1063,7 @@ function pastasDoArquivo(file) {
 let editorTimer = 0;
 const atualizarMapaEditor = () => {
   clearTimeout(editorTimer);
-  editorTimer = setTimeout(() => render(), 110);
+  editorTimer = setTimeout(() => { save(); render(); }, 110);
 };
 
 function abrirEditorKml(file) {
@@ -1028,7 +1074,7 @@ function abrirEditorKml(file) {
   const k = window.ngMapa?.kml() || {};
   const titulo = document.querySelector('#kmlEditTitle');
   const subtitulo = document.querySelector('#kmlEditSubtitle');
-  if (titulo) titulo.textContent = `Editar ${file.name}`;
+  if (titulo) titulo.textContent = `Aparência · ${file.name}`;
   if (subtitulo) {
     subtitulo.textContent = `${fmtInt(file.counts?.lines || 0)} linhas · ${fmtInt(file.counts?.points || 0)} pontos · ${fmtInt(file.counts?.polygons || 0)} áreas`;
   }
@@ -1237,20 +1283,23 @@ function persistOptions() {
 }
 
 function openKmlDialog() {
-  const view = els.view || document.querySelector('.view-kml');
-  if (!view) return;
+  const painel = els.view || document.querySelector('#kmlPanel');
+  if (!painel) return;
+  deps.navigate?.('map');
+  painel.hidden = false;
+  document.querySelector('.map-layout')?.classList.add('is-prj');
+  deps.mapView?.invalidate?.();
   syncOptionsUi();
   renderFiles();
   updateImportStatus();
   atualizarStatusEmbutido();
-  deps.navigate?.('kml');
 }
 
 export function initKml(options = {}) {
   deps = options;
   els = {
-    view: document.querySelector('.view-kml'),
-    dialog: document.querySelector('.view-kml'),
+    view: document.querySelector('#kmlPanel'),
+    dialog: document.querySelector('#kmlPanel'),
     fit: document.querySelector('#kmlFit'),
     clear: document.querySelector('#kmlClear'),
     fileInput: document.querySelector('#kmlFileInput'),
@@ -1275,6 +1324,7 @@ export function initKml(options = {}) {
   syncOptionsUi();
   render();
 
+  document.querySelector('#kmlPanelClose')?.addEventListener('click', hideKmlDock);
   document.querySelector('#mapKml')?.addEventListener('click', () => {
     openKmlDialog();
   });
@@ -1364,6 +1414,19 @@ export function initKml(options = {}) {
   });
 
   els.files?.addEventListener('change', (event) => {
+    const cor = event.target.closest('[data-kml-color]');
+    if (cor) {
+      const cardCor = cor.closest('[data-kml-file]');
+      const fileCor = state.files.find((item) => item.id === cardCor?.dataset.kmlFile);
+      if (!fileCor) return;
+      const cfgCor = cfgDoArquivo(fileCor);
+      if (cor.dataset.kmlColor === 'line') cfgCor.lineColor = cor.value;
+      else if (cor.dataset.kmlColor === 'point') cfgCor.pointColor = cor.value;
+      else cfgCor.polygonColor = cor.value;
+      save();
+      render();
+      return;
+    }
     const checkbox = event.target.closest('[data-kml-visible]');
     const card = event.target.closest('[data-kml-file]');
     if (!checkbox || !card) return;
@@ -1399,9 +1462,6 @@ export function initKml(options = {}) {
   bus.on('map:dock', (id) => {
   });
   bus.on('map:kml-close', hideKmlDock);
-  bus.on('ui:view', (view) => {
-    if (view !== 'map') hideKmlDock();
-  });
   bus.on('kml:open', () => openKmlDialog());
   bus.on('estilos:changed', () => { if (state.files.length) render(); });
   bus.on('settings:changed', ({ key }) => {

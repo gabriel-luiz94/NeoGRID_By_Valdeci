@@ -140,15 +140,21 @@ export class MapView {
       }
     }
     this.map.getPane('tilePane').style.opacity = String(1 - this.basemapOpacity / 100);
-    // Sem fundo o mapa vira uma folha branca, mesmo no tema escuro.
-    document.body.classList.toggle('is-basemap-none', definition.id === 'none');
+    this.syncBasemapBackdrop();
     this.syncBasemapGrid();
     if (!silent) updateSetting('basemap', definition.id);
+  }
+
+  /** O branco aparece atrás das imagens quando não há fundo ou quando ele está transparente. */
+  syncBasemapBackdrop() {
+    document.body.classList.toggle('is-basemap-none', this.currentBasemapId === 'none');
+    document.body.classList.toggle('is-basemap-faded', Number(this.basemapOpacity) > 0);
   }
 
   setOpacity(value) {
     this.basemapOpacity = Math.max(0, Math.min(90, Number(value) || 0));
     this.map.getPane('tilePane').style.opacity = String(1 - this.basemapOpacity / 100);
+    this.syncBasemapBackdrop();
     const input = document.querySelector('#basemapOpacity');
     if (input) {
       input.value = this.basemapOpacity;
@@ -254,6 +260,30 @@ export class MapView {
       bus.emit('labels:open');
     });
     document.querySelector('#mapFullscreen')?.addEventListener('click', () => this.toggleFullscreen());
+    const moreButton = document.querySelector('#mapMore');
+    const moreMenu = document.querySelector('#mapMoreMenu');
+    const setMoreMenu = (open) => {
+      if (!moreButton || !moreMenu) return;
+      moreMenu.hidden = !open;
+      moreButton.classList.toggle('is-active', open);
+      moreButton.setAttribute('aria-expanded', String(open));
+    };
+    moreButton?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setMoreMenu(moreMenu.hidden);
+    });
+    moreMenu?.addEventListener('click', (event) => {
+      if (event.target.closest('button')) setMoreMenu(false);
+    });
+    document.addEventListener('click', (event) => {
+      if (!moreMenu || moreMenu.hidden) return;
+      if (event.target.closest('#mapMoreMenu') || event.target.closest('#mapMore')) return;
+      setMoreMenu(false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setMoreMenu(false);
+    });
+    bus.on('ui:view', () => setMoreMenu(false));
     document.addEventListener('fullscreenchange', () => {
       this.invalidate();
       const button = document.querySelector('#mapFullscreen');

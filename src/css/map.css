@@ -451,8 +451,9 @@
 }
 
 /* ═══ Palco do mapa ══════════════════════════════════════════════ */
-/* Sem mapa de fundo o palco é branco, com grade discreta, inclusive no tema escuro. */
-body.is-basemap-none {
+/* Sem mapa de fundo ou com transparência, o palco é branco mesmo no tema escuro. */
+body.is-basemap-none,
+body.is-basemap-faded {
   --map-bg: #ffffff;
   --map-grid: rgba(15, 23, 42, .06);
 }
@@ -582,6 +583,71 @@ body.is-basemap-none {
   font-size: 8.5px;
   font-weight: 500;
   letter-spacing: -.03em;
+}
+
+/* Menu "Mais ferramentas": mantém os atalhos avançados sem poluir a barra. */
+.map-more-menu {
+  position: absolute;
+  z-index: 620;
+  top: 58px;
+  right: 13px;
+  display: grid;
+  gap: 1px;
+  width: 216px;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--glass);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px);
+}
+
+.map-more-menu[hidden] {
+  display: none;
+}
+
+.map-more-title {
+  padding: 5px 9px 7px;
+  color: var(--faint);
+  font-size: 8.5px;
+  font-weight: 650;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.map-more-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 11px;
+  text-align: left;
+  transition: background var(--speed), color var(--speed);
+}
+
+.map-more-item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.map-more-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.map-more-item .icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.map-more-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
 }
 
 .map-float-right {

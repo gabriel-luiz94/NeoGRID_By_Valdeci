@@ -61,7 +61,7 @@ function ligar() {
 
 // Um painel lateral por vez, na coluna do painel de camadas: o mapa nunca fica coberto.
 function ligarPaineis() {
-  const paineis = ['#prj', '#sp', '#cons'].map(s => $(s));
+  const paineis = ['#prj', '#sp', '#cons', '#kmlPanel'].map(s => $(s));
   let travando = false;
   const atualizar = () => {
     const algum = paineis.some(p => !p.hidden);
@@ -75,7 +75,10 @@ function ligarPaineis() {
       const novo = muts.map(m => m.target).reverse().find(p => paineis.includes(p) && !p.hidden);
       // Estilos abre por cima do Projeto e devolve a ele ao fechar: o projeto continua ativo.
       if (novo && novo.id !== 'sp') for (const p of paineis) if (p !== novo) p.hidden = true;
-      if (novo && novo.id === 'sp') $('#cons').hidden = true;
+      if (novo && novo.id === 'sp') {
+        $('#cons').hidden = true;
+        $('#kmlPanel').hidden = true;
+      }
       if (!$('#sp').hidden) $('#prj').classList.add('prj-recuado'); else $('#prj').classList.remove('prj-recuado');
     } finally { travando = false; }
     atualizar();
@@ -86,6 +89,7 @@ function ligarPaineis() {
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     if (!$('#sp').hidden) fecharSP();
     else if (!$('#cons').hidden) $('#cons').hidden = true;
+    else if (!$('#kmlPanel').hidden) $('#kmlPanel').hidden = true;
   });
 }
 

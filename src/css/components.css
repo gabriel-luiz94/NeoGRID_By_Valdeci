@@ -30,21 +30,16 @@
 }
 
 .btn-primary {
-  border-color: color-mix(in srgb, var(--accent) 68%, #000 8%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-2) 34%, var(--accent)), var(--accent));
+  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
+  background: var(--accent);
   color: var(--accent-ink);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .34),
-    0 5px 16px -9px color-mix(in srgb, var(--accent) 85%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16);
 }
 
 .btn-primary:hover:not(:disabled) {
-  filter: brightness(1.055);
+  filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .38),
-    0 9px 22px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2);
 }
 
 .btn-ghost {
@@ -1330,7 +1325,23 @@ dialog[open] .modal-shell {
   height: 13px;
   margin-top: 1px;
   flex: none;
-  color: var(--info);
+  color: var(--muted);
+}
+
+.print-markup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.print-markup-actions .btn {
+  flex: 1;
+}
+
+.print-markup-actions .btn.is-active {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .print-preview-info p {
@@ -1775,8 +1786,53 @@ dialog[open] .modal-shell {
 .kml-file-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 4px;
   flex: none;
+}
+
+.kml-file-colors {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 2px;
+}
+
+.kml-cor-input {
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.kml-cor-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.kml-cor-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.kml-cor-input::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+@media (max-width: 760px) {
+  .kml-file {
+    flex-wrap: wrap;
+  }
+
+  .kml-file-actions {
+    justify-content: flex-start;
+    width: 100%;
+    padding-left: 34px;
+  }
 }
 
 .kml-empty {

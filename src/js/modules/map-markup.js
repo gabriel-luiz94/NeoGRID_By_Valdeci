@@ -1,9 +1,7 @@
-/* Modo de marcação temporário no mapa (texto com fundo, seta, linha e
- * desenho livre). Tudo fica em um pane do mapa — portanto sai na impressão/PDF —
- * e é apagado ao sair do modo, como o modo Projeto. */
+/* Marcações no mapa (texto com fundo, seta, linha e desenho livre).
+ * Entram na prancha de impressão/PDF e continuam no mapa até serem apagadas. */
 import { esc } from '../core/format.js';
 import { openDialog, closeDialog } from '../core/dom.js';
-import { confirmAction } from '../ui/confirm.js';
 import { toast } from '../ui/toast.js';
 
 let deps = {};
@@ -52,6 +50,22 @@ function limpar() {
   limparTemp();
 }
 
+function aplicarFerramenta() {
+  const map = mapa();
+  if (!map) return;
+  const mover = ferramenta === 'pan';
+  if (mover) {
+    if (estadoMapa?.dragging !== false) map.dragging.enable();
+    if (estadoMapa?.doubleClickZoom !== false) map.doubleClickZoom.enable();
+    map.getContainer().style.cursor = 'grab';
+  } else {
+    map.dragging.disable();
+    map.doubleClickZoom.disable();
+    map.getContainer().style.cursor = 'crosshair';
+  }
+  atualizarBarra();
+}
+
 function ativar() {
   const map = mapa();
   if (!map) return;
@@ -62,28 +76,15 @@ function ativar() {
     dragging: map.dragging.enabled(),
     doubleClickZoom: map.doubleClickZoom.enabled(),
   };
-  map.dragging.disable();
-  map.doubleClickZoom.disable();
-  map.getContainer().style.cursor = 'crosshair';
+  aplicarFerramenta();
   const bar = document.querySelector('#markupBar');
   if (bar) bar.hidden = false;
-  document.querySelector('#mapMarkup')?.classList.add('is-active');
-  atualizarBarra();
-  toast.info('Modo marcação', 'Texto, seta, linha ou desenho livre. O botão Sair apaga tudo.', { duration: 6000 });
+  document.querySelector('#printMarkup')?.classList.add('is-active');
+  toast.info('Marcação no mapa', 'Desenhe sobre a área da prancha. Use “Concluir” para ajustar o mapa sem apagar as marcações.', { duration: 6000 });
 }
 
-async function sair({ confirmar = true } = {}) {
+function concluir() {
   if (!ativo) return;
-  const itens = camada?.getLayers?.().length || 0;
-  if (itens && confirmar) {
-    const ok = await confirmAction({
-      title: 'Sair do modo de marcação?',
-      text: `${itens} marcação(ões) serão apagadas do mapa.`,
-      confirmLabel: 'Sair e apagar',
-    });
-    if (!ok) return;
-  }
-  limpar();
   ativo = false;
   const map = mapa();
   if (map) {
@@ -93,7 +94,7 @@ async function sair({ confirmar = true } = {}) {
   }
   const bar = document.querySelector('#markupBar');
   if (bar) bar.hidden = true;
-  document.querySelector('#mapMarkup')?.classList.remove('is-active');
+  document.querySelector('#printMarkup')?.classList.remove('is-active');
   estadoMapa = null;
 }
 
@@ -185,7 +186,7 @@ function confirmarTexto() {
 }
 
 function aoDown(event) {
-  if (!ativo) return;
+  if (!ativo || ferramenta === 'pan') return;
   if (event.originalEvent && event.originalEvent.button !== 0) return;
   if (ferramenta === 'text') {
     abrirTexto(event.latlng);
@@ -230,14 +231,15 @@ export function initMapMarkup(options = {}) {
   map.on('mousemove', aoMove);
   map.on('mouseup', aoUp);
 
-  document.querySelector('#mapMarkup')?.addEventListener('click', () => {
-    if (ativo) sair();
+  const botaoMarcar = document.querySelector('#printMarkup');
+  botaoMarcar?.addEventListener('click', () => {
+    if (ativo) concluir();
     else ativar();
   });
   document.querySelectorAll('[data-markup-tool]').forEach((botao) => {
     botao.addEventListener('click', () => {
       ferramenta = botao.dataset.markupTool || 'text';
-      atualizarBarra();
+      aplicarFerramenta();
     });
   });
   const corInput = document.querySelector('#markupColor');
@@ -263,9 +265,13 @@ export function initMapMarkup(options = {}) {
   document.querySelector('#markupClear')?.addEventListener('click', () => {
     if (!camada?.getLayers().length) return;
     limpar();
-    toast.info('Marcações apagadas', 'O mapa está limpo; continue marcando ou saia do modo.');
+    toast.info('Marcações apagadas', 'O mapa está limpo; continue marcando ou conclua.');
   });
-  document.querySelector('#markupExit')?.addEventListener('click', () => { sair(); });
+  document.querySelector('#printMarkupClear')?.addEventListener('click', () => {
+    limpar();
+    toast.info('Marcações apagadas', 'A prancha volta a sair sem marcações.');
+  });
+  document.querySelector('#markupExit')?.addEventListener('click', () => { concluir(); });
   document.querySelector('#markupTextOk')?.addEventListener('click', confirmarTexto);
   document.querySelector('#markupText')?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -276,10 +282,17 @@ export function initMapMarkup(options = {}) {
   document.querySelector('#markupTextDialog')?.addEventListener('close', () => { textoPendente = null; });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && ativo && !document.querySelector('#markupTextDialog')?.open) sair();
+    if (event.key === 'Escape' && ativo && !document.querySelector('#markupTextDialog')?.open) concluir();
   });
   // Se o botão do mouse for solto fora do mapa, encerra o traço mesmo assim.
   window.addEventListener('mouseup', () => {
     if (ativo && inicio) finalizar();
   });
+
+  return {
+    ativar,
+    concluir,
+    limpar,
+    isActive: () => ativo,
+  };
 }

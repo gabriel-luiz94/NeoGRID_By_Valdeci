@@ -5,7 +5,7 @@ export const SETTINGS_KEY = 'neogrid.settings.v2';
 
 export const DEFAULT_SETTINGS = Object.freeze({
   theme: 'dark',
-  accent: 'orange',
+  accent: 'gray',
   density: 'comfortable',
   basemap: 'satellite',
   scale: 1000,
@@ -31,7 +31,7 @@ function readSettings() {
     parsed.fields = raw.fields && typeof raw.fields === 'object' ? raw.fields : {};
     parsed.tableColumns = raw.tableColumns && typeof raw.tableColumns === 'object' ? raw.tableColumns : {};
     if (!['dark', 'light'].includes(parsed.theme)) parsed.theme = DEFAULT_SETTINGS.theme;
-    if (!['orange', 'cyan', 'green', 'violet'].includes(parsed.accent)) parsed.accent = DEFAULT_SETTINGS.accent;
+    if (!['gray'].includes(parsed.accent)) parsed.accent = DEFAULT_SETTINGS.accent;
     if (!['comfortable', 'compact'].includes(parsed.density)) parsed.density = DEFAULT_SETTINGS.density;
     parsed.scale = Number(parsed.scale) || DEFAULT_SETTINGS.scale;
     parsed.labelZoom = Number(parsed.labelZoom) || DEFAULT_SETTINGS.labelZoom;

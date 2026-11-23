@@ -21,9 +21,6 @@ function sync() {
   document.querySelectorAll('#themeSegmented [data-theme-value]').forEach((button) => {
     button.classList.toggle('is-active', button.dataset.themeValue === settings.theme);
   });
-  document.querySelectorAll('#accentSwatches [data-accent-value]').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.accentValue === settings.accent);
-  });
   if (els.compact) els.compact.checked = settings.density === 'compact';
   if (els.basemap) els.basemap.value = settings.basemap;
   if (els.scale) els.scale.value = String(settings.scale);
@@ -242,9 +239,6 @@ export function initSettings() {
 
   document.querySelectorAll('#themeSegmented [data-theme-value]').forEach((button) => {
     button.addEventListener('click', () => updateSetting('theme', button.dataset.themeValue));
-  });
-  document.querySelectorAll('#accentSwatches [data-accent-value]').forEach((button) => {
-    button.addEventListener('click', () => updateSetting('accent', button.dataset.accentValue));
   });
 
   els.compact?.addEventListener('change', () => {
